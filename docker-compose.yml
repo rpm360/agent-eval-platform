@@ -1,0 +1,34 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - EVAL_ROOT_DIR=/app
+      - EVAL_PYTHON_BIN=/usr/local/bin/python3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./results:/app/results
+      - ./tasks:/app/tasks
+      - ./configs:/app/configs
+      - ./calibration:/app/calibration
+      - ./models.yaml:/app/models.yaml
+
+  # Optional: build worker images with `docker compose --profile workers build`
+  worker-hermes:
+    image: agent-eval-hermes:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes
+    profiles: ["workers"]
+
+  worker-langgraph:
+    image: agent-eval-langgraph:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.langgraph
+    profiles: ["workers"]
