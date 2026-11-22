@@ -1,15 +1,15 @@
 models:
   # Fast Gemini model (also used as default LLM-as-judge in graders.py)
   - id: gemini-flash
-    litellm: gemini/gemini-2.5-flash
+    litellm: gemini/gemini-3.8-flash
     provider: google
     env_key: GEMINI_API_KEY
     env_aliases:
       - GOOGLE_API_KEY
-    fallback: gemini/gemini-2.0-flash
+    fallback: gemini/gemini-3.5-flash-lite
     pricing:
-      input_per_mtok: 0.15
-      output_per_mtok: 0.60
+      input_per_mtok: 0.75
+      output_per_mtok: 3.75
 
   - id: gemini-pro
     litellm: gemini/gemini-3.1-pro-preview
@@ -17,7 +17,7 @@ models:
     env_key: GEMINI_API_KEY
     env_aliases:
       - GOOGLE_API_KEY
-    fallback: gemini/gemini-2.5-flash
+    fallback: gemini/gemini-3.8-flash
     pricing:
       input_per_mtok: 1.25
       output_per_mtok: 10.00

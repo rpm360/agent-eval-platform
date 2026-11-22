@@ -5,3 +5,5 @@ timeout_sec: 180
 memory: true
 skills:
   - release-tag-format
+  - changelog-format
+  - commit-message-format

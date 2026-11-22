@@ -27,6 +27,8 @@ eval-retry = "eval_runner.cli:retry_cmd"
 eval-compare = "eval_runner.cli:compare_cmd"
 eval-inspect = "eval_runner.cli:inspect_cmd"
 eval-export = "eval_runner.cli:export_cmd"
+eval-calibrate = "eval_runner.cli:calibrate_cmd"
+eval-failures = "eval_runner.cli:failures_cmd"
 
 [build-system]
 requires = ["hatchling"]
