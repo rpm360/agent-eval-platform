@@ -7,3 +7,6 @@ results/
 *.db
 *.sqlite
 .DS_Store
+node_modules/
+api/dist/
+web/dist/
