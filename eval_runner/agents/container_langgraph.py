@@ -100,10 +100,13 @@ def _run_mock(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
 
 
 def _run_langgraph(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
+    import litellm
     from langchain_core.tools import tool
     from langchain_litellm import ChatLiteLLM
     from langgraph.checkpoint.sqlite import SqliteSaver
     from langgraph.prebuilt import create_react_agent
+
+    litellm.drop_params = True
 
     settings = spec["settings"]
     memory_enabled = bool(settings.get("memory", False))
@@ -195,11 +198,18 @@ def _run_langgraph(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
 
         tools.extend([read_memory, write_memory])
 
+    allowed_tools = settings.get("tools")
+    if allowed_tools is not None:
+        allowed_set = set(allowed_tools)
+        tools = [t for t in tools if t.name in allowed_set]
+
     temp = float(settings.get("temperature", 0.2))
     llm_kwargs: dict[str, Any] = {
         "model": spec["litellm_model"],
         "temperature": temp,
     }
+    if settings.get("max_output_tokens"):
+        llm_kwargs["max_tokens"] = int(settings["max_output_tokens"])
     if spec.get("api_base"):
         llm_kwargs["api_base"] = spec["api_base"]
     llm: Any = ChatLiteLLM(**llm_kwargs)

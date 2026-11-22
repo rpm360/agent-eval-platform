@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import random
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -21,6 +23,7 @@ from eval_runner.container import (
     put_directory,
     reap_orphan_containers,
 )
+from eval_runner.failures import classify_failure
 from eval_runner.graders import grade_trial
 from eval_runner.models import (
     InfraModelError,
@@ -149,14 +152,27 @@ def run_single_trial(
                         trial_index=trial_index,
                         status="infra_error",
                         runtime_sec=runtime_sec,
+                        failure_category="infra_error",
                         error_message=err_msg,
                         trace_path=str(trace_path) if events else None,
                     )
                     atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
                     return trial
 
-                # Handle agent timeout (agent failure -> scored 0.0)
-                if timed_out:
+                in_tok = int(result_data.get("input_tokens", 0) or 0)
+                out_tok = int(result_data.get("output_tokens", 0) or 0)
+                total_tok = in_tok + out_tok
+                cost_usd = estimate_cost_usd(model, in_tok, out_tok)
+
+                budget = config.settings.max_total_tokens
+                if budget is not None and total_tok > budget:
+                    grade = GradeResult(
+                        grader_type=task.grader.type,
+                        score=0.0,
+                        passed=False,
+                        reasoning=f"Token budget exceeded: {total_tok} > max_total_tokens ({budget}).",
+                    )
+                elif timed_out:
                     grade = GradeResult(
                         grader_type=task.grader.type,
                         score=0.0,
@@ -173,10 +189,6 @@ def run_single_trial(
                         final_answer=str(result_data.get("final_answer", "")),
                         catalog=catalog,
                     )
-
-                in_tok = int(result_data.get("input_tokens", 0) or 0)
-                out_tok = int(result_data.get("output_tokens", 0) or 0)
-                cost_usd = estimate_cost_usd(model, in_tok, out_tok)
 
                 trial = TrialResult(
                     trial_id=trial_id,
@@ -199,6 +211,9 @@ def run_single_trial(
                     grade=grade,
                     trace_path=str(trace_path) if events else None,
                 )
+                failure_cat = classify_failure(trial, events, task, config.settings)
+                if failure_cat is not None:
+                    trial = trial.model_copy(update={"failure_category": failure_cat})
                 atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
                 return trial
         finally:
@@ -214,11 +229,49 @@ def run_single_trial(
             task_id=task.id,
             trial_index=trial_index,
             status="infra_error",
+            failure_category="infra_error",
             runtime_sec=round(time.time() - start_time, 2),
             error_message=str(exc),
         )
         atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
         return trial
+
+
+def _git_provenance() -> dict[str, Any]:
+    try:
+        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
+        dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True, stderr=subprocess.DEVNULL).strip())
+        return {"git_commit": sha, "git_dirty": dirty}
+    except Exception:
+        return {"git_commit": None, "git_dirty": None}
+
+
+def _hash_task_dir(task_dir: Path) -> str:
+    h = hashlib.sha256()
+    for p in sorted(task_dir.rglob("*")):
+        if p.is_file():
+            h.update(str(p.relative_to(task_dir)).encode("utf-8"))
+            h.update(p.read_bytes())
+    return h.hexdigest()[:12]
+
+
+def _image_digests(configs: list[tuple[ConfigSpec, ModelEntry]], override_image: str | None) -> dict[str, str]:
+    digests: dict[str, str] = {}
+    try:
+        client = get_docker_client()
+    except Exception:
+        return digests
+    try:
+        for cfg, _ in configs:
+            img = override_image or get_adapter(cfg.harness).default_image
+            if img not in digests:
+                try:
+                    digests[img] = client.images.get(img).id or "unknown"
+                except Exception:
+                    digests[img] = "unavailable"
+    finally:
+        client.close()
+    return digests
 
 
 def save_experiment_manifest(
@@ -228,12 +281,26 @@ def save_experiment_manifest(
     task_dirs: list[Path],
     n_trials: int,
     seed: int,
+    override_image: str | None = None,
 ) -> None:
+    import importlib.metadata
+
+    try:
+        litellm_ver = importlib.metadata.version("litellm")
+    except Exception:
+        litellm_ver = "unknown"
+
     manifest = {
         "experiment_id": experiment_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "n_trials": n_trials,
         "seed": seed,
+        "provenance": {
+            **_git_provenance(),
+            "litellm_version": litellm_ver,
+            "image_digests": _image_digests(configs, override_image),
+            "task_hashes": {p.name: _hash_task_dir(p) for p in task_dirs},
+        },
         "configs": [
             {
                 "config": c.model_dump(mode="json"),
@@ -341,7 +408,9 @@ def run_experiment(
     exp_id = experiment_id or f"exp_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
     exp_dir = results_dir / exp_id
     exp_dir.mkdir(parents=True, exist_ok=True)
-    save_experiment_manifest(exp_dir, exp_id, resolved_configs, task_dirs, n_trials, seed)
+    save_experiment_manifest(
+        exp_dir, exp_id, resolved_configs, task_dirs, n_trials, seed, override_image=image
+    )
 
     # Clean up any orphaned containers from prior crashed runs
     try:
@@ -465,6 +534,7 @@ def export_experiment(exp_dir: Path, fmt: str, out_path: Path) -> None:
         "output_tokens",
         "cost_usd",
         "steps",
+        "failure_category",
         "error_message",
     ]
     out_path.parent.mkdir(parents=True, exist_ok=True)

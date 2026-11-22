@@ -57,19 +57,58 @@ def summarize_config(trials: list[TrialResult]) -> dict[str, Any]:
             "pass_rate": 0.0,
             "avg_cost_usd": 0.0,
             "total_cost_usd": 0.0,
+            "cost_per_pass_usd": None,
             "avg_runtime_sec": 0.0,
+            "p50_runtime_sec": 0.0,
+            "p95_runtime_sec": 0.0,
             "avg_tokens": 0,
         }
+    runtimes = np.array([t.runtime_sec for t in completed], dtype=float)
+    total_cost = float(np.sum([t.cost_usd for t in completed]))
+    n_passed = sum(1 for t in completed if t.passed)
     return {
         "completed": len(completed),
         "infra_errors": len(errored),
         "mean_score": round(float(np.mean([t.score for t in completed if t.score is not None])), 4),
-        "pass_rate": round(float(np.mean([1.0 if t.passed else 0.0 for t in completed])), 4),
+        "pass_rate": round(float(n_passed / len(completed)), 4),
         "avg_cost_usd": round(float(np.mean([t.cost_usd for t in completed])), 6),
-        "total_cost_usd": round(float(np.sum([t.cost_usd for t in completed])), 6),
-        "avg_runtime_sec": round(float(np.mean([t.runtime_sec for t in completed])), 2),
+        "total_cost_usd": round(total_cost, 6),
+        "cost_per_pass_usd": round(total_cost / n_passed, 6) if n_passed else None,
+        "avg_runtime_sec": round(float(np.mean(runtimes)), 2),
+        "p50_runtime_sec": round(float(np.percentile(runtimes, 50)), 2),
+        "p95_runtime_sec": round(float(np.percentile(runtimes, 95)), 2),
         "avg_tokens": int(np.mean([t.input_tokens + t.output_tokens for t in completed])),
     }
+
+
+def power_warnings(report: dict[str, Any]) -> list[str]:
+    """Flag under-powered or biased comparisons so small-sample noise isn't over-interpreted."""
+    warnings: list[str] = []
+    shared = int(report.get("shared_tasks", 0))
+    if shared < 10:
+        warnings.append(
+            f"Low task count ({shared} shared task(s) < 10): paired bootstrap CI has wide uncertainty."
+        )
+    per_task = report.get("per_task", [])
+    if per_task:
+        min_n = min(min(r["n_a"], r["n_b"]) for r in per_task)
+        if min_n < 3:
+            warnings.append(
+                f"Low trial count per task (min n={min_n} < 3): single-trial variance may dominate."
+            )
+        saturated = sum(
+            1 for r in per_task if (r["score_a"] >= 0.999 and r["score_b"] >= 0.999) or (r["score_a"] <= 0.001 and r["score_b"] <= 0.001)
+        )
+        if saturated == len(per_task):
+            warnings.append("All shared tasks are saturated (both 1.0 or both 0.0) — zero discriminating signal.")
+    for label, key in ((report.get("config_a", "A"), "summary_a"), (report.get("config_b", "B"), "summary_b")):
+        s = report.get(key, {})
+        total = int(s.get("completed", 0)) + int(s.get("infra_errors", 0))
+        if total > 0 and (int(s.get("infra_errors", 0)) / total) > 0.10:
+            warnings.append(
+                f"High infra_error rate on {label} ({s['infra_errors']}/{total} > 10%): run `eval-retry` before trusting results."
+            )
+    return warnings
 
 
 def compare_configs(
@@ -97,20 +136,27 @@ def compare_configs(
     maj_b: list[bool] = []
 
     for task_id in shared_tasks:
-        mean_a = float(np.mean([t.score for t in by_task_a[task_id] if t.score is not None]))
-        mean_b = float(np.mean([t.score for t in by_task_b[task_id] if t.score is not None]))
+        scores_a = [float(t.score) for t in by_task_a[task_id] if t.score is not None]
+        scores_b = [float(t.score) for t in by_task_b[task_id] if t.score is not None]
+        mean_a = float(np.mean(scores_a))
+        mean_b = float(np.mean(scores_b))
         delta = mean_b - mean_a
         deltas.append(delta)
         maj_a.append(mean_a >= 0.5)
         maj_b.append(mean_b >= 0.5)
+
+        paired_trials = [b - a for a, b in zip(scores_a, scores_b)]
+        t_ci_low, t_ci_high = paired_bootstrap_ci(paired_trials, seed=seed)
         per_task.append(
             {
                 "task_id": task_id,
-                "n_a": len(by_task_a[task_id]),
-                "n_b": len(by_task_b[task_id]),
+                "n_a": len(scores_a),
+                "n_b": len(scores_b),
                 "score_a": round(mean_a, 4),
                 "score_b": round(mean_b, 4),
                 "delta": round(delta, 4),
+                "ci_95": [round(t_ci_low, 4), round(t_ci_high, 4)],
+                "is_noise": (t_ci_low <= 0.0 <= t_ci_high),
             }
         )
 
@@ -126,7 +172,7 @@ def compare_configs(
     else:
         verdict = f"{name_a} BETTER"
 
-    return {
+    report = {
         "config_a": name_a,
         "config_b": name_b,
         "shared_tasks": len(shared_tasks),
@@ -138,3 +184,5 @@ def compare_configs(
         "verdict": verdict,
         "per_task": per_task,
     }
+    report["warnings"] = power_warnings(report)
+    return report

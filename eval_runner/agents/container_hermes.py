@@ -114,6 +114,8 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
             "model": spec["litellm_model"],
             "memory": memory_enabled,
             "skills": settings.get("skills", []),
+            "tools_requested": settings.get("tools"),
+            "tools_enforced": settings.get("tools") is not None,
         },
     )
     seq = _write_trace(trace_path, seq, "message", {"role": "user", "content": spec["instruction"]})
@@ -154,6 +156,10 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
             "max_iterations": int(settings.get("max_steps", 20)),
             "quiet_mode": True,
         }
+        if settings.get("tools") is not None:
+            agent_kwargs["enabled_toolsets"] = list(settings["tools"])
+        if settings.get("max_output_tokens"):
+            agent_kwargs["max_tokens"] = int(settings["max_output_tokens"])
         if spec.get("api_base"):
             agent_kwargs["base_url"] = str(spec["api_base"])
         try:
@@ -199,7 +205,20 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
 
     if isinstance(res, dict):
         final_answer = str(res.get("final_response") or res.get("response") or "")
+        # Hermes catches some provider errors internally and returns them as final_response
+        err_blob = str(res.get("error") or "")
+        if not err_blob and (
+            "Provider said:" in final_answer or "didn't answer after" in final_answer
+        ):
+            err_blob = final_answer
+        if err_blob and any(
+            k in err_blob.lower()
+            for k in ("404", "429", "401", "403", "not_found", "rate limit", "503", "502", "api key")
+        ):
+            _write_trace(trace_path, seq, "error", {"kind": "infra_error", "message": err_blob})
+            return {"status": "infra_error", "error": err_blob}
         messages = res.get("messages") or []
+        skipped_initial_user = False
         for msg in messages:
             if not isinstance(msg, dict):
                 continue
@@ -223,13 +242,32 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
                 )
             elif role in ("assistant", "user"):
                 content = str(msg.get("content") or "")
+                if (
+                    role == "user"
+                    and not skipped_initial_user
+                    and content.strip() == spec["instruction"].strip()
+                ):
+                    skipped_initial_user = True
+                    continue
                 if content:
                     seq = _write_trace(
                         trace_path, seq, "message", {"role": role, "content": content[:4000]}
                     )
         usage = res.get("usage") or res.get("token_usage") or {}
-        in_tok = int(usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0)
-        out_tok = int(usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0)
+        in_tok = int(
+            usage.get("prompt_tokens")
+            or usage.get("input_tokens")
+            or getattr(agent, "session_input_tokens", 0)
+            or getattr(agent, "session_prompt_tokens", 0)
+            or 0
+        )
+        out_tok = int(
+            usage.get("completion_tokens")
+            or usage.get("output_tokens")
+            or getattr(agent, "session_output_tokens", 0)
+            or getattr(agent, "session_completion_tokens", 0)
+            or 0
+        )
     else:
         final_answer = str(res)
         seq = _write_trace(trace_path, seq, "message", {"role": "assistant", "content": final_answer})
