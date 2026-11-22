@@ -1,0 +1,8 @@
+id: file-csv-aggregate
+category: data
+description: Aggregate sales.csv by region and write summary.json.
+discriminates: [tool_use]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

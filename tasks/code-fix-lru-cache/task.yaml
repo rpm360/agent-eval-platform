@@ -1,0 +1,8 @@
+id: code-fix-lru-cache
+category: coding
+description: Fix the eviction bug in lru.py so hidden pytest tests pass.
+discriminates: [coding]
+timeout_sec: 180
+grader:
+  type: deterministic
+  script: tests/test.sh

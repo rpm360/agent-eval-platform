@@ -1,0 +1,10 @@
+name: langgraph-mock
+harness: langgraph
+model: mock
+settings:
+  temperature: 0.0
+  max_steps: 10
+  timeout_sec: 60
+  memory: true
+  skills:
+    - release-tag-format

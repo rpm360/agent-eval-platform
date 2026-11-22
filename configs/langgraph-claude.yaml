@@ -1,0 +1,10 @@
+name: langgraph-claude
+harness: langgraph
+model: claude-sonnet
+settings:
+  temperature: 0.2
+  max_steps: 20
+  timeout_sec: 180
+  memory: true
+  skills:
+    - release-tag-format

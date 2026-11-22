@@ -1,0 +1,28 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    coreutils \
+    curl \
+    git \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    "langgraph>=0.2.60" \
+    "langgraph-checkpoint-sqlite>=2.0.0" \
+    "langchain-litellm>=0.2.0" \
+    "langchain-core>=0.3.0" \
+    "litellm>=1.60.0" \
+    "tenacity>=9.0.0" \
+    "pydantic>=2.10.0" \
+    "pyyaml>=6.0.2" \
+    "pytest>=8.3.0"
+
+COPY eval_runner/agents/container_langgraph.py /opt/eval_agents/container_langgraph.py
+
+WORKDIR /workspace
+CMD ["sleep", "infinity"]

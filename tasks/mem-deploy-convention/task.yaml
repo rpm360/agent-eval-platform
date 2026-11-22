@@ -1,0 +1,8 @@
+id: mem-deploy-convention
+category: memory
+description: Recall the project's deployment namespace convention from MEMORY.md and write DEPLOY_TARGET.txt.
+discriminates: [memory]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh
