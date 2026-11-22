@@ -15,10 +15,11 @@ uv run pytest -v
 docker build -f Dockerfile.hermes -t agent-eval-hermes:latest .
 docker build -f Dockerfile.langgraph -t agent-eval-langgraph:latest .
 
-# 4. Smoke test end-to-end on the free mock model (compares memory+skills ON vs OFF)
+# 4. Smoke test end-to-end on the free mock model (Hermes vs LangGraph)
 uv run eval-run \
-  --config configs/langgraph-mock.yaml \
-  --config configs/hermes-mock-nomem.yaml \
+  -H hermes -H langgraph \
+  -m mock \
+  --settings configs/default.yaml \
   --tasks tasks/ \
   --trials 1
 
@@ -34,18 +35,18 @@ uv run eval-export --exp <exp_id> --format csv
 cp .env.example .env
 # Add GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, etc. to .env
 
-# Option 1: CLI matrix with catalog IDs OR raw LiteLLM strings (zero config YAMLs needed)
+# Run any harness × model matrix with catalog IDs OR raw LiteLLM strings
 uv run eval-run \
   -H hermes -H langgraph \
-  -m gemini/gemini-3.5-flash-lite -m openrouter/qwen/qwen-2.5-coder-32b-instruct \
-  --settings configs/hermes-gemini.yaml \
+  -m gemini-flash -m openrouter/qwen/qwen-2.5-coder-32b-instruct \
+  --settings configs/default.yaml \
   --tasks tasks/ \
   --trials 2
 
-# Option 2: Saved declarative experiment configs
+# Memory/skills ablation using configs/nomem.yaml
 uv run eval-run \
-  --config configs/hermes-gemini.yaml \
-  --config configs/langgraph-gemini.yaml \
+  -H hermes -m gemini-flash \
+  --settings configs/nomem.yaml \
   --tasks tasks/ \
   --trials 2
 

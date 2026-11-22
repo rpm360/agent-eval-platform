@@ -36,12 +36,9 @@ from eval_runner.schemas import (
     ModelEntry,
     Settings,
     TaskSpec,
-    TraceEvent,
     TrialResult,
     compute_config_hash,
 )
-
-DEFAULT_IMAGE = "agent-eval-base:latest"
 
 
 def atomic_write_text(path: Path, text: str) -> None:

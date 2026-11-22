@@ -20,7 +20,7 @@ def test_eval_retry_reruns_only_infra_error_trials(tmp_path: Path) -> None:
         trial_index: int,
         results_dir: Path,
         skills_root: Path = Path("skills"),
-        image: str = "agent-eval-base:latest",
+        image: str | None = None,
     ) -> TrialResult:
         calls.append((task_dir.name, trial_index))
         from eval_runner.schemas import compute_config_hash
@@ -69,7 +69,9 @@ def test_eval_retry_reruns_only_infra_error_trials(tmp_path: Path) -> None:
         "eval_runner.runner.reap_orphan_containers", return_value=0
     ):
         exp_id, first_results = run_experiment(
-            config_paths=[Path("configs/langgraph-mock.yaml")],
+            harnesses=["langgraph"],
+            models=["mock"],
+            settings_path=Path("configs/default.yaml"),
             tasks_path=Path("tasks"),
             n_trials=1,
             concurrency=1,

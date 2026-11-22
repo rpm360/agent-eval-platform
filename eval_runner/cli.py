@@ -12,7 +12,6 @@ from rich.console import Console
 from rich.table import Table
 
 from eval_runner.runner import (
-    DEFAULT_IMAGE,
     export_experiment,
     load_experiment_trials,
     retry_experiment,

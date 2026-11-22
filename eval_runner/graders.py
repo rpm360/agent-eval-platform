@@ -11,7 +11,7 @@ from typing import Any
 from docker.models.containers import Container
 
 from eval_runner.container import exec_with_timeout, get_file_text, put_directory
-from eval_runner.models import InfraModelError, call_model_with_retry
+from eval_runner.models import InfraModelError, call_model_with_retry, resolve_model
 from eval_runner.schemas import GradeResult, ModelCatalog, TaskSpec
 
 
@@ -91,7 +91,7 @@ def grade_llm_judge(
 ) -> GradeResult:
     """Grade an agent's output against a rubric using LiteLLM Router at temperature=0."""
     judge_id = task.grader.judge_model or os.environ.get("JUDGE_MODEL", "gemini-flash")
-    judge_model = catalog.get(judge_id)
+    judge_model = resolve_model(catalog, judge_id)
 
     if judge_model.provider == "mock":
         ok = bool(final_answer.strip())

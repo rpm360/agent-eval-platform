@@ -1,4 +1,5 @@
 models:
+  # Fast Gemini model (also used as default LLM-as-judge in graders.py)
   - id: gemini-flash
     litellm: gemini/gemini-2.5-flash
     provider: google
@@ -16,53 +17,10 @@ models:
     env_key: GEMINI_API_KEY
     env_aliases:
       - GOOGLE_API_KEY
-    fallback: gemini/gemini-3.8-flash
+    fallback: gemini/gemini-2.5-flash
     pricing:
       input_per_mtok: 1.25
       output_per_mtok: 10.00
-
-  - id: gemini-3.1-flash-lite
-    litellm: gemini/gemini-3.1-flash-lite
-    provider: google
-    env_key: GEMINI_API_KEY
-    env_aliases:
-      - GOOGLE_API_KEY
-    pricing:
-      input_per_mtok: 0.25
-      output_per_mtok: 1.50
-
-  - id: gemini-3.5-flash-lite
-    litellm: gemini/gemini-3.5-flash-lite
-    provider: google
-    env_key: GEMINI_API_KEY
-    env_aliases:
-      - GOOGLE_API_KEY
-    fallback: gemini/gemini-3.1-flash-lite
-    pricing:
-      input_per_mtok: 0.30
-      output_per_mtok: 2.50
-
-  - id: gemini-3.8-flash
-    litellm: gemini/gemini-3.8-flash
-    provider: google
-    env_key: GEMINI_API_KEY
-    env_aliases:
-      - GOOGLE_API_KEY
-    fallback: gemini/gemini-3.5-flash-lite
-    pricing:
-      input_per_mtok: 0.75
-      output_per_mtok: 3.75
-
-  - id: gemini-4-hydrogen
-    litellm: gemini/gemini-4-hydrogen
-    provider: google
-    env_key: GEMINI_API_KEY
-    env_aliases:
-      - GOOGLE_API_KEY
-    fallback: gemini/gemini-3.8-flash
-    pricing:
-      input_per_mtok: 1.50
-      output_per_mtok: 7.50
 
   - id: claude-sonnet
     litellm: anthropic/claude-sonnet-4-5
