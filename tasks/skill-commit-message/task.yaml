@@ -1,0 +1,8 @@
+id: skill-commit-message
+category: skill
+description: Apply the house commit-message-format skill to write COMMIT_MSG.txt.
+discriminates: [skills]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

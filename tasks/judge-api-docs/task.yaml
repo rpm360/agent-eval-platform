@@ -1,0 +1,23 @@
+id: judge-api-docs
+category: writing
+description: Write accurate README docs for a token-bucket rate limiter.
+discriminates: [quality]
+timeout_sec: 180
+grader:
+  type: llm_judge
+  pass_threshold: 0.7
+  artifacts:
+    - README.md
+  rubric: |
+    Ground truth (from ratelimit.py): `TokenBucket(capacity: int, refill_rate: float)` where
+    refill_rate is tokens per second; the bucket starts full. `allow(cost=1) -> bool` refills
+    based on elapsed time, then returns True and deducts `cost` if enough tokens are available,
+    otherwise returns False without deducting. Raises ValueError if capacity <= 0 or
+    refill_rate <= 0 (constructor), or if cost <= 0 or cost > capacity (allow).
+
+    Criteria:
+    1. Purpose and constructor parameters explained correctly (incl. refill_rate units). (0.25)
+    2. allow() semantics and return value correct (deducts only on success). (0.3)
+    3. All ValueError conditions documented correctly. (0.25)
+    4. Usage example is consistent with the real API. (0.2)
+    Invented methods or parameters must reduce the score substantially.

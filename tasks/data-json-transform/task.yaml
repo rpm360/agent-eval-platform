@@ -1,0 +1,8 @@
+id: data-json-transform
+category: data
+description: Filter active users from users.json and sort by signup date.
+discriminates: [tool_use]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

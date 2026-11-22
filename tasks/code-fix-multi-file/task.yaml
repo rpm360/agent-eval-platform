@@ -1,0 +1,8 @@
+id: code-fix-multi-file
+category: coding
+description: Fix two cooperating bugs across a small package (pricing + cart).
+discriminates: [coding, steps]
+timeout_sec: 180
+grader:
+  type: deterministic
+  script: tests/test.sh

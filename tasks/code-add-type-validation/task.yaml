@@ -1,0 +1,8 @@
+id: code-add-type-validation
+category: coding
+description: Add input validation (TypeError/ValueError) to a conversion function.
+discriminates: [coding]
+timeout_sec: 180
+grader:
+  type: deterministic
+  script: tests/test.sh

@@ -1,0 +1,10 @@
+14:02:11 UTC deploy: checkout-service v2.3.1 rolled out to 100% (config: db.pool_size 50 -> 5)
+14:05:40 UTC metrics: checkout 5xx rate 0.4% -> 9.8%
+14:06:15 UTC logs: "timeout acquiring connection from pool (size=5)" x 1,204
+14:07:02 UTC alert: CheckoutErrorRateHigh fired (threshold 5%)
+14:09:30 UTC on-call: acknowledged, investigating payment provider status (healthy)
+14:15:48 UTC metrics: checkout 5xx rate peaked at 31.2%
+14:18:05 UTC on-call: correlated errors with v2.3.1 deploy; pool exhaustion suspected
+14:21:20 UTC deploy: rollback to checkout-service v2.3.0 started
+14:24:02 UTC metrics: checkout 5xx rate back to 0.5%
+14:30:00 UTC on-call: incident resolved

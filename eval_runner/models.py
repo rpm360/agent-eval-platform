@@ -11,6 +11,8 @@ from typing import Any
 import yaml
 import litellm
 from litellm import Router
+
+litellm.drop_params = True
 from litellm.exceptions import APIConnectionError, RateLimitError, ServiceUnavailableError, Timeout
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random_exponential
 

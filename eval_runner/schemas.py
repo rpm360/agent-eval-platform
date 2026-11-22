@@ -47,6 +47,9 @@ class Settings(BaseModel):
     memory: bool = False
     skills: list[str] = Field(default_factory=list)
     system_prompt_append: str | None = None
+    tools: list[str] | None = None
+    max_output_tokens: int | None = Field(default=None, gt=0)
+    max_total_tokens: int | None = Field(default=None, gt=0)
 
 
 class ConfigSpec(BaseModel):
@@ -65,14 +68,21 @@ def compute_config_hash(config: ConfigSpec, model_entry: ModelEntry) -> str:
     """Deterministic SHA-256 hash of a config version.
 
     Excludes `pricing` so provider price changes do not mint a new config version.
+    Omits optional `tools`, `max_output_tokens`, `max_total_tokens`, and `api_base` when None
+    so existing hashes remain backward-compatible.
     """
+    settings_dict = config.settings.model_dump(mode="json")
+    for opt_key in ("tools", "max_output_tokens", "max_total_tokens"):
+        if settings_dict.get(opt_key) is None:
+            settings_dict.pop(opt_key, None)
+
     canonical_payload: dict[str, Any] = {
         "name": config.name,
         "harness": config.harness,
         "model_id": model_entry.id,
         "litellm": model_entry.litellm,
         "provider": model_entry.provider,
-        "settings": config.settings.model_dump(mode="json"),
+        "settings": settings_dict,
     }
     if model_entry.api_base is not None:
         canonical_payload["api_base"] = model_entry.api_base
@@ -86,6 +96,7 @@ class GraderSpec(BaseModel):
     rubric: str | None = None
     judge_model: str | None = None
     pass_threshold: float = 0.7
+    artifacts: list[str] = Field(default_factory=list)
 
 
 class TaskSpec(BaseModel):
@@ -150,6 +161,7 @@ class TrialResult(BaseModel):
     steps: int = 0
     final_answer: str = ""
     grade: GradeResult | None = None
+    failure_category: str | None = None
     error_message: str | None = None
     trace_path: str | None = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

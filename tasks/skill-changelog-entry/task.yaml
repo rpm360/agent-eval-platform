@@ -1,0 +1,8 @@
+id: skill-changelog-entry
+category: skill
+description: Apply the house changelog-format skill to write CHANGELOG.md.
+discriminates: [skills]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

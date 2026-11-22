@@ -1,0 +1,8 @@
+id: fs-find-largest-file
+category: filesystem
+description: Find the largest file in a nested tree, including hidden directories.
+discriminates: [tool_use]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

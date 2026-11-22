@@ -1,0 +1,11 @@
+2026-01-01T10:00:00 INFO [auth] user login ok
+2026-01-01T10:00:01 ERROR [auth] token expired
+2026-01-01T10:00:02 WARN [billing] retrying charge after error
+2026-01-01T10:00:03 ERROR [billing] card declined
+2026-01-01T10:00:04 INFO [search] query returned error-free results
+2026-01-01T10:00:05 ERROR [auth] invalid signature
+2026-01-01T10:00:06 ERROR [search] index unavailable
+2026-01-01T10:00:07 INFO [billing] invoice sent with no ERROR
+2026-01-01T10:00:08 ERROR [billing] refund failed
+2026-01-01T10:00:09 ERROR [auth] rate limited
+2026-01-01T10:00:10 DEBUG [search] ERROR budget check skipped

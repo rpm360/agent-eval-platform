@@ -1,0 +1,21 @@
+id: judge-code-review
+category: coding
+description: Review a diff and find the three planted issues.
+discriminates: [quality, coding]
+timeout_sec: 180
+grader:
+  type: llm_judge
+  pass_threshold: 0.7
+  artifacts:
+    - REVIEW.md
+  rubric: |
+    Ground truth — the diff contains exactly three serious issues:
+    (a) SQL injection: the query is built with an f-string from user-controlled `username`.
+    (b) The plaintext password is written to the logs (`logger.info(... password ...)`).
+    (c) A bare `except:` swallows all errors and returns success-looking `None`.
+
+    Criteria:
+    1. Identifies the SQL injection and recommends parameterized queries. (0.35)
+    2. Identifies plaintext password logging and recommends removing/redacting it. (0.3)
+    3. Identifies the bare except and recommends catching specific exceptions / re-raising. (0.25)
+    4. No major false claims about the code. (0.1)

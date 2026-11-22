@@ -1,0 +1,8 @@
+id: code-implement-roman
+category: coding
+description: Implement to_roman/from_roman with validation; hidden tests.
+discriminates: [coding]
+timeout_sec: 180
+grader:
+  type: deterministic
+  script: tests/test.sh

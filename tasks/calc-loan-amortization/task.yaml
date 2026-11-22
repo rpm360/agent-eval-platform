@@ -1,0 +1,8 @@
+id: calc-loan-amortization
+category: computation
+description: Compute a fixed-rate monthly mortgage payment and write payment.txt.
+discriminates: [tool_use]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

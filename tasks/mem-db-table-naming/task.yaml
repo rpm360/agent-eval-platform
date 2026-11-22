@@ -1,0 +1,8 @@
+id: mem-db-table-naming
+category: memory
+description: Recall the database table naming + audit-column convention from memory.
+discriminates: [memory]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

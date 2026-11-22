@@ -1,0 +1,8 @@
+id: code-fix-binary-search
+category: coding
+description: Fix an off-by-one bug in binary_search so hidden tests pass.
+discriminates: [coding]
+timeout_sec: 180
+grader:
+  type: deterministic
+  script: tests/test.sh

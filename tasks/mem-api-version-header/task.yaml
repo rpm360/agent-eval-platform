@@ -1,0 +1,8 @@
+id: mem-api-version-header
+category: memory
+description: Recall the team's internal API base URL + version header from memory.
+discriminates: [memory]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

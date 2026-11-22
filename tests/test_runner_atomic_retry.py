@@ -77,7 +77,7 @@ def test_eval_retry_reruns_only_infra_error_trials(tmp_path: Path) -> None:
             concurrency=1,
             results_dir=tmp_path,
         )
-        assert len(first_results) == 5
+        assert len(first_results) == 24
         assert sum(1 for r in first_results if r.status == "infra_error") == 1
 
         # Now run eval-retry: MUST re-run ONLY the 1 infra_error trial
@@ -87,5 +87,5 @@ def test_eval_retry_reruns_only_infra_error_trials(tmp_path: Path) -> None:
         assert retried[0].status == "completed"
 
         all_trials = load_experiment_trials(tmp_path / exp_id)
-        assert len(all_trials) == 5
+        assert len(all_trials) == 24
         assert all(t.status == "completed" for t in all_trials)

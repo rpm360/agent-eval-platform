@@ -1,0 +1,8 @@
+id: data-log-error-counts
+category: data
+description: Count ERROR-level log lines per module (with distractor lines).
+discriminates: [tool_use, precision]
+timeout_sec: 120
+grader:
+  type: deterministic
+  script: tests/test.sh

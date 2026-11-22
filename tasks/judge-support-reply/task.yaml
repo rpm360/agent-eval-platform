@@ -1,0 +1,24 @@
+id: judge-support-reply
+category: memory
+description: Draft a support reply that follows the remembered refund policy.
+discriminates: [memory, quality]
+timeout_sec: 180
+grader:
+  type: llm_judge
+  pass_threshold: 0.7
+  artifacts:
+    - REPLY.md
+  rubric: |
+    Ground truth policy (from team memory): purchases refunded in full only within 30 days;
+    31-60 days -> store credit only (no cash refund); over 60 days -> no refund. Replies must
+    reference the ticket ID and be signed "AEP Support Team". Never promise a resolution faster
+    than 5 business days. The ticket (T-5531) is a purchase made 45 days ago asking for a full
+    refund.
+
+    Criteria:
+    1. Offers store credit and declines the full cash refund (correct 31-60 day rule). (0.45)
+    2. References ticket ID T-5531. (0.15)
+    3. Signed "AEP Support Team". (0.15)
+    4. Does not promise a timeline shorter than 5 business days. (0.15)
+    5. Polite, clear and empathetic. (0.1)
+    Offering a full refund must score below 0.5.

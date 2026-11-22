@@ -1,0 +1,22 @@
+id: judge-explain-bug
+category: reasoning
+description: Explain the root cause of a moving-average bug, the fix, and an edge case.
+discriminates: [quality]
+timeout_sec: 180
+grader:
+  type: llm_judge
+  pass_threshold: 0.7
+  artifacts:
+    - EXPLANATION.md
+  rubric: |
+    Ground truth: `range(len(values) - window)` stops one iteration early, so the FINAL window is
+    never computed (off-by-one). The fix is `range(len(values) - window + 1)`. Unhandled edge
+    cases include: window <= 0 (ZeroDivisionError / nonsense), window > len(values) (returns an
+    empty list silently), empty input.
+
+    Criteria:
+    1. Correctly identifies the off-by-one in the range bound that drops the last window. (0.4)
+    2. Gives the correct fix (`+ 1` on the range bound or equivalent). (0.3)
+    3. Names at least one genuine unhandled edge case from the ground truth. (0.2)
+    4. Concise and technically accurate; no incorrect claims. (0.1)
+    A wrong root cause must score below 0.5 regardless of writing quality.

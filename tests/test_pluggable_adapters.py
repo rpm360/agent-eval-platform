@@ -190,12 +190,21 @@ def test_config_hash_backward_compatible_and_sensitive_to_api_base() -> None:
     m_with_base = m_no_base.model_copy(update={"api_base": "http://localhost:11434"})
     assert compute_config_hash(cfg, m_no_base) != compute_config_hash(cfg, m_with_base)
 
+    # New optional Settings fields (None) must preserve the exact same hash
+    cfg_explicit_none = ConfigSpec(
+        name="test",
+        harness="hermes",
+        model="m1",
+        settings=Settings(tools=None, max_output_tokens=None, max_total_tokens=None),
+    )
+    assert compute_config_hash(cfg, m_no_base) == compute_config_hash(cfg_explicit_none, m_no_base)
+
 
 def test_resolve_model_supports_direct_litellm_strings() -> None:
     catalog = load_models_catalog(Path("models.yaml"))
 
     # Catalog ID still works
-    assert resolve_model(catalog, "gemini-flash").litellm == "gemini/gemini-2.5-flash"
+    assert resolve_model(catalog, "gemini-flash").litellm == "gemini/gemini-3.8-flash"
 
     # Direct LiteLLM strings work without being in models.yaml
     oai = resolve_model(catalog, "openai/gpt-4o-mini")

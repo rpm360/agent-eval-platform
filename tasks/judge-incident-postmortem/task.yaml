@@ -1,0 +1,23 @@
+id: judge-incident-postmortem
+category: writing
+description: Write a blameless postmortem from a raw incident log.
+discriminates: [quality]
+timeout_sec: 180
+grader:
+  type: llm_judge
+  pass_threshold: 0.7
+  artifacts:
+    - POSTMORTEM.md
+  rubric: |
+    Ground truth (from incident.log): v2.3.1 deployed at 14:02 UTC; it changed the DB connection
+    pool size from 50 to 5. 5xx error rate rose from 14:05, alert fired 14:07, on-call rolled back
+    to v2.3.0 at 14:21, error rate normal by 14:24. Impact window ~19-22 minutes; ~31% of checkout
+    requests failed during the window.
+
+    Criteria:
+    1. Timeline includes the key timestamps (deploy, error onset, alert, rollback, recovery). (0.25)
+    2. Root cause correctly identified as the DB connection pool reduced to 5 in v2.3.1. (0.35)
+    3. Impact states duration and affected traffic consistent with the log. (0.15)
+    4. At least two concrete, relevant action items (e.g. config validation, canary, pool alerts). (0.15)
+    5. No fabricated facts and blameless tone. (0.1)
+    A wrong root cause must score below 0.5.

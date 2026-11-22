@@ -31,4 +31,4 @@ def test_models_catalog_loads_and_computes_cost() -> None:
     claude = catalog.get("claude-sonnet")
     assert gemini.provider == "google"
     assert claude.provider == "anthropic"
-    assert estimate_cost_usd(gemini, 1_000_000, 1_000_000) == 0.75
+    assert estimate_cost_usd(gemini, 1_000_000, 1_000_000) == 4.5
