@@ -64,6 +64,8 @@ def _litellm_openai_bridge(spec: dict[str, Any], usage_totals: dict[str, int]) -
                 kwargs["max_tokens"] = int(max_out or body["max_tokens"])
             if api_base:
                 kwargs["api_base"] = str(api_base)
+                if not os.environ.get("OPENAI_API_KEY"):
+                    kwargs["api_key"] = "unauthenticated"
 
             is_stream = bool(body.get("stream"))
             try:
