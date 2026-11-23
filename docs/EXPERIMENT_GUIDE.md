@@ -14,10 +14,21 @@ The benchmark ships with **24 tasks** grouped into five real-world buckets, incl
 | **Procedural Skills** | 3 | `skill-release-tag`, `skill-changelog-entry`, `skill-commit-message` | Deterministic check on formats from `SKILL.md` |
 | **Writing & Reasoning** | 5 | `judge-code-review`, `judge-api-docs`, `judge-explain-bug`, `judge-incident-postmortem`, `judge-support-reply` | LLM-as-judge with a rubric |
 
-### How Grading Stays Fair
+### Grader Design & Validation
 
-- **Deterministic graders (19 tasks):** Verification scripts and `pytest` suites are injected into the container *only after* the agent exits, so an agent can never read or tamper with the tests.
-- **Calibrated AI judge (5 tasks):** Open-ended tasks are graded against a strict rubric at `temperature = 0`. Before trusting the judge, we tested it against **30 human-labelled examples**—it matched human pass/fail calls **93% of the time** (Cohen's κ ≈ 0.87, well above our 0.60 trust bar).
+- **Deterministic graders (19 tasks):** Verification scripts (`tests/test.sh`) and hidden `pytest` suites are injected into `/grader-tests` *only after* the agent exits (`--rootdir=/grader-tests`), so an agent can never read or tamper with the tests during execution. Every task is validated by automated lint tests (`tests/test_tasks_lint.py`) and deterministic `mock` smoke runs.
+- **Calibrated AI judge (5 tasks):** Open-ended tasks (plus any required workspace files listed in `grader.artifacts`) are wrapped in prompt-injection-resistant XML tags and graded against a strict rubric at `temperature = 0` with automatic JSON repair. We validated the judge (`eval-calibrate`) against **30 human-labelled examples** across all 5 judge tasks (3 repeats each): it achieved **93.3% accuracy**, **Cohen's κ = 0.8667** (threshold $\ge 0.60$), **96.7% self-agreement**, and verdict **`TRUSTED`**.
+
+---
+
+## Statistical Method & How We Chose $N$
+
+- **Task-level pairing (excluding `infra_error`):** For each shared task $t$, we average completed trial scores $\hat{s}_{A,t}$ and $\hat{s}_{B,t}$ and compute the paired task delta $d_t = \hat{s}_{B,t} - \hat{s}_{A,t}$. Pairing by task removes baseline task-difficulty variance.
+- **Paired bootstrap 95% CI & exact McNemar's test (`eval_runner/stats.py`):**
+  - We resample the paired deltas $(d_1, \dots, d_T)$ **10,000 times** (`scipy.stats.bootstrap`, percentile method) to get the 95% CI for $\hat{\Delta}$, plus per-task 95% CIs.
+  - We run an **exact two-sided binomial McNemar test** (`scipy.stats.binomtest`) on discordant task-level majority pass/fail pairs.
+  - **Noise rule:** If $0$ lies inside the 95% CI, the verdict is **`NOISE`**. Automated `power_warnings()` flag comparisons when shared tasks $< 10$, trials/task $< 3$, tasks are saturated, or `infra_error` $> 10\%$.
+- **How we chose $N$ (trials per task):** Total variance decomposes into $\mathrm{Var}(\hat{\Delta}) = \frac{1}{T}\left(\sigma^2_{\text{between-tasks}} + \frac{\sigma^2_{\text{within-task}}}{N}\right)$. At `temperature = 0.2`, within-task variance is modest: we use **$N = 1$** for fast deterministic smoke checks, **$N = 2\text{--}3$** for standard head-to-head runs (reducing within-task noise by 50–67%), and **$N = 3\text{--}5$** when evaluating higher-temperature or judge-graded tasks. Beyond $N = 5$, adding more *tasks ($T$)* improves statistical power much faster than adding more trials.
 
 ---
 

@@ -21,12 +21,32 @@ Everything runs locally with `docker compose up`. Results are plain files on dis
 
 ---
 
-## Key Building Blocks
+## Key Building Blocks & Adapter Interfaces
 
-- **Harnesses: the "driver."** A harness is the agent's operating loop: how it plans, uses tools, reads memory, and loads skills. Hermes and LangGraph are two different drivers. Adding a new one means adding one adapter file, without touching the platform's core.
-- **Models: the "engine."** Every model is reached through one shared interface (LiteLLM). Switching from Gemini to Claude to a self-hosted model is a one-line config change.
-- **Graders: the "referee."** Most tasks are checked by a script that runs *after* the agent finishes, so the agent can't see or tamper with the answer key. Open-ended writing tasks use an AI judge, which we checked against human labels before trusting it.
-- **Stats: the "scoreboard with error bars."** Instead of one pass rate, you get a confidence range and a verdict. If the range includes zero, the platform says **noise** instead of declaring a winner.
+- **Harness Adapter (`HarnessAdapter` — the "driver"):** Wraps any agent loop (`hermes`, `langgraph`, or a custom plugin) behind three methods:
+  - `prepare_container()` — writes `/io/spec.json` (prompt, model, settings), enabled `skills/`, and optional `seed/MEMORY.md` into the container.
+  - `build_command()` — returns the container command to execute.
+  - `extract_outputs()` — reads back `/io/result.json` (`status`, `final_answer`, `steps`, `input_tokens`, `output_tokens`) and `/io/trace.jsonl`.
+  - *Zero-core-edit extensibility:* New harnesses dropped into `eval_runner/agents/<name>.py` with `@register_adapter` are auto-discovered at startup.
+- **Model Adapter (`ModelAdapter` — the "engine"):** Reaches any provider (Gemini, Claude, OpenRouter, Cloud Run vLLM, local Ollama, or `mock`) through a single **LiteLLM** interface (`LiteLLMModelAdapter` + `Router` with automatic HTTP 429 exponential backoff, key rotation, and fallbacks):
+  - `build_container_env()` — injects provider API keys and `api_base` into the sandbox container.
+  - `complete()` — executes rubric judge and calibration calls with automatic retries.
+- **Graders (the "referee"):** Post-run deterministic verifiers (`/grader-tests/test.sh` & `pytest`) and an artifact-aware LLM-as-judge.
+- **Stats & Failure Classifier (the "scoreboard"):** Paired bootstrap confidence intervals, exact McNemar's test, and a 12-category rule-based failure taxonomy (`eval_runner/failures.py`).
+
+---
+
+## Data Model (`tasks`, `configs`, `experiments`, `trials`, `traces`)
+
+All entities are validated with Pydantic (`eval_runner/schemas.py`) and persisted as atomic JSON/JSONL files under `results/<experiment_id>/`:
+
+| Entity | Schema / File | Key Fields |
+| :--- | :--- | :--- |
+| **Tasks** | `TaskSpec` (`tasks/<id>/task.yaml`) | `id`, `category`, `discriminates`, `timeout_sec`, `grader` (`type`, `script`, `rubric`, `artifacts`, `pass_threshold`), plus `instruction.md`, `fixtures/`, `seed/MEMORY.md`. |
+| **Configs** | `ConfigSpec` (`configs/*.yaml`) | `name`, `harness`, `model`, `settings` (`temperature`, `max_steps`, `timeout_sec`, `memory`, `skills`, `tools`, token budgets), versioned by a 12-char SHA-256 `config_hash`. |
+| **Experiments** | `results/<exp_id>/manifest.json` | `experiment_id`, `created_at`, `n_trials`, `seed`, resolved `configs` (with `config_hash`), `tasks`, and `provenance` (`git_commit`, `image_digests`, `task_hashes`, `litellm_version`). |
+| **Trials** | `TrialResult` (`trials/<trial_id>.json`) | `trial_id`, `config_name`, `config_hash`, `task_id`, `trial_index`, `status` (`completed` \| `infra_error`), `score`, `passed`, `runtime_sec`, `input_tokens`, `output_tokens`, `cost_usd`, `steps`, `grade`, `failure_category`. |
+| **Traces** | `TraceEvent` (`trials/<trial_id>.trace.jsonl`) | Sequential `seq`, `ts`, `type` (`session_start`, `message`, `tool_call`, `tool_result`, `memory_op`, `skill_invoked`, `model_call`, `error`, `session_end`), and `payload`. |
 
 ---
 
@@ -56,7 +76,8 @@ sequenceDiagram
 
 ---
 
-## Two Rules That Keep Results Honest
+## How Runs Are Isolated and Reproduced
 
-- **Infrastructure errors never count as failures.** If a provider rate-limits us or a container crashes, that attempt is marked *infra error*, kept out of the score, and can be re-run on its own.
-- **Every run is reproducible.** Each experiment records the exact settings, code version, and container versions it used.
+- **Container-per-trial isolation (`eval_runner/container.py`):** Every trial attempt runs in a fresh ephemeral Docker container (`mem_limit=4g`, `cpus=2`, `pids_limit=256`, `tmpfs` `/tmp`), with `/root/.hermes` wiped clean and files injected via in-memory tar archives (`put_archive`). A dual watchdog (`timeout --kill-after=5` inside the container + a host kill timer) enforces `timeout_sec`, and a `finally` block + `SIGINT` handler + startup orphan reaper guarantee zero leftover containers.
+- **Golden Rule & atomic retry (`eval-retry`):** Each trial writes atomically (`tmp` → rename). Provider rate limits (429/5xx), missing keys, or runner crashes are recorded as `status: "infra_error"` (`score: null`), excluded from stats, and re-run selectively via `eval-retry` without touching completed trials.
+- **Deterministic reproducibility:** `compute_config_hash()` hashes the canonical JSON of `{harness, model, api_base, settings}` (excluding `pricing` so price updates don't break historical hashes). `manifest.json` snapshots the git commit SHA, Docker image digests, per-task content hashes, and random seed (used to shuffle trial execution order across configs so time-of-day provider drift never biases one arm).
