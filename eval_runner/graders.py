@@ -125,7 +125,11 @@ def grade_llm_judge(
     artifacts_content: dict[str, str] | None = None,
 ) -> GradeResult:
     """Grade an agent's output (and optional workspace artifacts) against a rubric."""
-    judge_id = task.grader.judge_model or os.environ.get("JUDGE_MODEL", "gemini-flash")
+    default_judge = "gemini-flash"
+    if not any(m.id == default_judge for m in catalog.models):
+        first_real = next((m.id for m in catalog.models if m.provider != "mock"), default_judge)
+        default_judge = first_real
+    judge_id = task.grader.judge_model or os.environ.get("JUDGE_MODEL", default_judge)
     judge_model = resolve_model(catalog, judge_id)
 
     loaded_artifacts: dict[str, str] = dict(artifacts_content or {})

@@ -125,6 +125,15 @@ export default function App() {
       setSelTasks(catRes.tasks.map((t: { id: string }) => t.id));
       setTasksInitialized(true);
     }
+    if (catRes?.models?.length) {
+      setSelModels((prev) => {
+        const validIds = new Set(catRes.models.map((m: { id: string }) => m.id));
+        const kept = prev.filter((id) => validIds.has(id));
+        if (kept.length > 0) return kept;
+        const firstReal = catRes.models.find((m: { id: string }) => m.id !== "mock") || catRes.models[0];
+        return firstReal ? [firstReal.id] : [];
+      });
+    }
     setExperiments(expRes.experiments || []);
     setCalibrations(calRes.reports || []);
     setSelectedExp((prev) => keepExp || prev || expRes.experiments?.[0]?.id || "");
@@ -305,6 +314,77 @@ export default function App() {
     if (!activeExpMeta?.expectedTrials || activeExpMeta.expectedTrials <= 0) return null;
     return Math.min(100, Math.round((activeExpMeta.trialCount / activeExpMeta.expectedTrials) * 100));
   }, [activeExpMeta]);
+
+  // Pre-launch cost estimate: tasks × trials × configs × average tokens × price
+  const costEstimate = useMemo(() => {
+    const activeModels = [...selModels, ...(customModel.trim() ? [customModel.trim()] : [])];
+    const nTasks = selTasks.length;
+    const nConfigs = selHarnesses.length * activeModels.length;
+    const totalTrials = nTasks * nTrials * nConfigs;
+
+    // Empirical averages from hermes_langgraph__gemini-flash__2026-11-23_13-32-24
+    const AVG_TOKENS_BY_HARNESS: Record<string, { inTok: number; outTok: number }> = {
+      hermes: { inTok: 49300, outTok: 1200 },
+      langgraph: { inTok: 19900, outTok: 1800 },
+    };
+    const DEFAULT_TOKENS = { inTok: 34600, outTok: 1500 };
+
+    const modelLookup = new Map((catalog?.models || []).map((m) => [m.id, m]));
+    let totalCostUsd = 0;
+    let totalTokens = 0;
+    const perConfig: Array<{ name: string; trials: number; avgTokens: number; costUsd: number }> = [];
+
+    for (const h of selHarnesses) {
+      const tok = AVG_TOKENS_BY_HARNESS[h] || DEFAULT_TOKENS;
+      const avgTokPerTrial = tok.inTok + tok.outTok;
+      for (const mId of activeModels) {
+        const mInfo = modelLookup.get(mId);
+        const inRate = mInfo?.pricing?.input_per_mtok ?? 0.75;
+        const outRate = mInfo?.pricing?.output_per_mtok ?? 3.75;
+        const costPerTrial = (tok.inTok / 1_000_000) * inRate + (tok.outTok / 1_000_000) * outRate;
+        const cfgTrials = nTasks * nTrials;
+        const cfgCost = cfgTrials * costPerTrial;
+        totalCostUsd += cfgCost;
+        totalTokens += cfgTrials * avgTokPerTrial;
+        perConfig.push({
+          name: `${h}-${mId.replace(/\//g, "-")}`,
+          trials: cfgTrials,
+          avgTokens: avgTokPerTrial,
+          costUsd: cfgCost,
+        });
+      }
+    }
+
+    // Add LLM-as-judge grading overhead (~2,000 in + 400 out tokens per judge trial on default gemini-flash)
+    const selectedTaskSet = new Set(selTasks);
+    const judgeTaskCount = (catalog?.tasks || []).filter(
+      (t) => selectedTaskSet.has(t.id) && t.grader?.type === "llm_judge"
+    ).length;
+    const judgeModel =
+      modelLookup.get("gemini-flash") ||
+      modelLookup.get("gemini-flash-lite-3.1") ||
+      (catalog?.models || []).find((m) => m.id !== "mock");
+    const jIn = judgeModel?.pricing?.input_per_mtok ?? 0.25;
+    const jOut = judgeModel?.pricing?.output_per_mtok ?? 1.5;
+    const judgeCostPerTrial = (2000 / 1_000_000) * jIn + (400 / 1_000_000) * jOut;
+    const judgeTrials = judgeTaskCount * nTrials * nConfigs;
+    const judgeCostUsd = judgeTrials * judgeCostPerTrial;
+    totalCostUsd += judgeCostUsd;
+
+    const avgTokensPerTrial = totalTrials > 0 ? Math.round(totalTokens / totalTrials) : 0;
+    return {
+      nTasks,
+      nTrials,
+      nConfigs,
+      totalTrials,
+      totalTokens,
+      avgTokensPerTrial,
+      totalCostUsd,
+      judgeTrials,
+      judgeCostUsd,
+      perConfig,
+    };
+  }, [selHarnesses, selModels, customModel, selTasks, nTrials, catalog]);
 
   const filteredTrials = trials.filter((t) => {
     if (trialFilter === "failed") return t.status === "completed" && !t.passed;
@@ -685,14 +765,58 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Pre-run Cost Estimate Card */}
+              <div className={`${subCardCls} space-y-2 p-3.5`}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                      Estimated Experiment Cost
+                    </div>
+                    <div className="font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {costEstimate.nTasks} tasks × {costEstimate.nTrials} trials × {costEstimate.nConfigs} configs ={" "}
+                      <span className="font-semibold text-zinc-700 dark:text-zinc-200">
+                        {costEstimate.totalTrials} trials
+                      </span>{" "}
+                      (~{(costEstimate.totalTokens / 1000).toFixed(0)}k tokens)
+                    </div>
+                  </div>
+                  <div className="text-right font-mono">
+                    <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">
+                      ~${costEstimate.totalCostUsd.toFixed(2)}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 dark:text-zinc-400">
+                      range ${(costEstimate.totalCostUsd * 0.7).toFixed(2)}–${(costEstimate.totalCostUsd * 1.3).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {costEstimate.perConfig.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px] font-mono text-zinc-600 dark:text-zinc-400">
+                    {costEstimate.perConfig.map((c) => (
+                      <span
+                        key={c.name}
+                        className="rounded border border-zinc-200 bg-white px-2 py-0.5 dark:border-white/[0.08] dark:bg-[#111114]"
+                      >
+                        {c.name}: ~{(c.avgTokens / 1000).toFixed(1)}k tok/trial → ${c.costUsd.toFixed(2)}
+                      </span>
+                    ))}
+                    {costEstimate.judgeTrials > 0 && (
+                      <span className="rounded border border-zinc-200 bg-white px-2 py-0.5 dark:border-white/[0.08] dark:bg-[#111114]">
+                        +{costEstimate.judgeTrials} judge calls: ${costEstimate.judgeCostUsd.toFixed(3)}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={handleLaunchRun}
-                disabled={isLaunching || selTasks.length === 0}
+                disabled={isLaunching || selTasks.length === 0 || costEstimate.nConfigs === 0}
                 className="w-full rounded-lg bg-cyan-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-cyan-500 disabled:opacity-50 dark:bg-cyan-500 dark:text-zinc-950 dark:hover:bg-cyan-400"
               >
                 {isLaunching
                   ? "Launching Experiment..."
-                  : `Run Experiment (${selHarnesses.length} × ${selModels.length + (customModel.trim() ? 1 : 0)} arms · ${selTasks.length} ${selTasks.length === 1 ? "task" : "tasks"})`}
+                  : `Run Experiment (${costEstimate.nConfigs} ${costEstimate.nConfigs === 1 ? "config" : "configs"} · ${costEstimate.totalTrials} ${costEstimate.totalTrials === 1 ? "trial" : "trials"} · ~$${costEstimate.totalCostUsd.toFixed(2)})`}
               </button>
             </section>
 

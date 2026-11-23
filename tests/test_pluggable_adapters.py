@@ -39,10 +39,10 @@ def test_harness_adapters_auto_discovered() -> None:
 def test_harness_specific_env_lives_in_adapter_not_core(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "test-gem-key")
     catalog = load_models_catalog(Path("models.yaml"))
-    gemini = catalog.get("gemini-flash")
+    gemini = next(m for m in catalog.models if m.provider == "google")
 
-    hermes_cfg = ConfigSpec(name="h", harness="hermes", model="gemini-flash", settings=Settings())
-    lg_cfg = ConfigSpec(name="l", harness="langgraph", model="gemini-flash", settings=Settings())
+    hermes_cfg = ConfigSpec(name="h", harness="hermes", model=gemini.id, settings=Settings())
+    lg_cfg = ConfigSpec(name="l", harness="langgraph", model=gemini.id, settings=Settings())
 
     hermes_env = _build_container_env(get_adapter("hermes"), hermes_cfg, gemini)
     lg_env = _build_container_env(get_adapter("langgraph"), lg_cfg, gemini)
@@ -59,14 +59,14 @@ def test_harness_specific_env_lives_in_adapter_not_core(monkeypatch: pytest.Monk
 def test_open_weight_and_openrouter_models_supported(monkeypatch: pytest.MonkeyPatch) -> None:
     catalog = load_models_catalog(Path("models.yaml"))
 
-    ollama = catalog.get("ollama-qwen-coder")
+    ollama = resolve_model(catalog, "ollama/qwen2.5-coder:7b")
     assert ollama.requires_api_key is False
     assert ollama.api_base == "http://host.docker.internal:11434"
     ollama_env = get_model_adapter(ollama.adapter).build_container_env(ollama)
     assert ollama_env == {"LITELLM_API_BASE": "http://host.docker.internal:11434"}
 
     monkeypatch.setenv("OPENROUTER_API_KEY", "or-secret-key")
-    or_model = catalog.get("openrouter-qwen-coder")
+    or_model = resolve_model(catalog, "openrouter/qwen/qwen-2.5-coder-32b-instruct")
     or_env = get_model_adapter(or_model.adapter).build_container_env(or_model)
     assert or_env == {"OPENROUTER_API_KEY": "or-secret-key"}
 
@@ -118,11 +118,11 @@ def test_custom_harness_runs_without_touching_core(tmp_path: Path) -> None:
     cfg = ConfigSpec(
         name="custom-demo-ollama",
         harness="custom-demo-harness",
-        model="ollama-qwen-coder",
+        model="ollama/qwen2.5-coder:7b",
         settings=Settings(),
     )
     catalog = load_models_catalog(Path("models.yaml"))
-    model = catalog.get("ollama-qwen-coder")
+    model = resolve_model(catalog, "ollama/qwen2.5-coder:7b")
 
     captured_env: dict[str, str] = {}
     captured_image: list[str] = []
@@ -213,7 +213,8 @@ def test_resolve_model_supports_direct_litellm_strings() -> None:
     catalog = load_models_catalog(Path("models.yaml"))
 
     # Catalog ID still works
-    assert resolve_model(catalog, "gemini-flash").litellm == "gemini/gemini-3.8-flash"
+    first_model = catalog.models[0]
+    assert resolve_model(catalog, first_model.id).litellm == first_model.litellm
 
     # Direct LiteLLM strings work without being in models.yaml
     oai = resolve_model(catalog, "openai/gpt-4o-mini")

@@ -34,6 +34,25 @@ Agents are non-deterministic, so comparing Config A against Config B on a single
 
 ---
 
+## Cost Estimate & How We Reduce Spend
+
+Before you click **Run Experiment**, the dashboard shows a live cost estimate computed from your selection and the rates in [`models.yaml`](../models.yaml):
+
+```text
+Estimated Cost = tasks × trials (N) × configs × avg_tokens_per_trial × model_price_per_token
+```
+
+- **Example (`24 tasks × 1 trial × 2 configs` on `gemini-flash`):**
+  - **Hermes:** `24 × 1 × 1 × ~50.5k tokens` (at \$0.75 / 1M input, \$3.75 / 1M output) ≈ **\$0.99 estimated** (**\$0.83 actual spend** in [`hermes_langgraph__gemini-flash__2026-11-23_13-32-24`](./EXPERIMENT_RESULTS.md)).
+  - **LangGraph:** `24 × 1 × 1 × ~21.7k tokens` ≈ **\$0.52 estimated** (**\$0.49 actual spend**).
+  - **Total actual spend for our 48-trial experiment:** **\$1.32** (\$0.8257 Hermes + \$0.4911 LangGraph, saving 41% on LangGraph).
+- **How to cut evaluation cost by 60–85%:**
+  - **Prompt & prefix caching:** Hermes sends ~29k system/tool-schema tokens on every step. Enabling provider context caching (Gemini/Anthropic prompt caching) discounts repeated system prefixes by 75–90%.
+  - **Early stopping on missing context & loops:** In our experiment, failed memory/skill trials burned ~70k–95k tokens searching the filesystem until step 20. Stopping immediately when `/agent-home/MEMORY.md` or `/io/skills/` is empty—or when the same bash search repeats twice—cuts wasted tokens on failing trials by >80%.
+  - **Tiered task sampling:** Run `N = 1` on a fast 5-task smoke subset (~5–10 cents) to catch regressions early, and only run `N = 3` across all 24 tasks before a release or on tasks where two configs actually disagree.
+
+---
+
 ## Honest Limits
 
 - **Small runs have wide error bars.** With `N = 1` or fewer than 10 tasks, only large gaps will clear the noise filter. The dashboard displays an automatic warning whenever a run has `N < 3` or saturated tasks.

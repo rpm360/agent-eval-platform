@@ -1,15 +1,14 @@
 models:
-  # Fast Gemini model (also used as default LLM-as-judge in graders.py)
-  - id: gemini-flash
-    litellm: gemini/gemini-3.8-flash
+
+  - id: gemini-flash-lite-3.1
+    litellm: gemini/gemini-3.1-flash-lite
     provider: google
     env_key: GEMINI_API_KEY
     env_aliases:
       - GOOGLE_API_KEY
-    fallback: gemini/gemini-3.5-flash-lite
     pricing:
-      input_per_mtok: 0.75
-      output_per_mtok: 3.75
+      input_per_mtok: 0.25
+      output_per_mtok: 1.50
 
   - id: gemini-pro
     litellm: gemini/gemini-3.1-pro-preview
@@ -19,44 +18,17 @@ models:
       - GOOGLE_API_KEY
     fallback: gemini/gemini-3.8-flash
     pricing:
-      input_per_mtok: 1.25
-      output_per_mtok: 10.00
-
-  - id: claude-sonnet
-    litellm: anthropic/claude-sonnet-4-5
-    provider: anthropic
-    env_key: ANTHROPIC_API_KEY
-    fallback: anthropic/claude-haiku-4-5
-    pricing:
-      input_per_mtok: 3.00
-      output_per_mtok: 15.00
+      input_per_mtok: 2.00
+      output_per_mtok: 12.00
 
   - id: claude-haiku
     litellm: anthropic/claude-haiku-4-5
     provider: anthropic
     env_key: ANTHROPIC_API_KEY
     pricing:
-      input_per_mtok: 0.80
-      output_per_mtok: 4.00
+      input_per_mtok: 1.00
+      output_per_mtok: 5.00
 
-  # Open-weight model via OpenRouter (common LiteLLM interface)
-  - id: openrouter-qwen-coder
-    litellm: openrouter/qwen/qwen-2.5-coder-32b-instruct
-    provider: openrouter
-    env_key: OPENROUTER_API_KEY
-    pricing:
-      input_per_mtok: 0.20
-      output_per_mtok: 0.20
-
-  # Local self-hosted open-weight model via Ollama (no API key required)
-  - id: ollama-qwen-coder
-    litellm: ollama/qwen2.5-coder:7b
-    provider: ollama
-    api_base: http://host.docker.internal:11434
-    requires_api_key: false
-    pricing:
-      input_per_mtok: 0.0
-      output_per_mtok: 0.0
 
   # Cloud Run vLLM open-weight endpoint (1x NVIDIA L4, allow_unauthenticated=True)
   - id: Qwen2.5-7B
@@ -65,8 +37,8 @@ models:
     api_base: https://oss-llm-test-874570031229.asia-southeast1.run.app/v1
     requires_api_key: false
     pricing:
-      input_per_mtok: 0.0
-      output_per_mtok: 0.0
+      input_per_mtok: 0.05
+      output_per_mtok: 0.02
 
   - id: mock
     litellm: mock/scripted
