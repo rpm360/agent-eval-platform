@@ -65,7 +65,29 @@
 
 ---
 
-## 4. Conclusions & Recommendations
+## 4. Cost Estimate Formula, Actual Spend & Cost Reduction
+
+The dashboard estimates experiment cost before launch using the model rates in [`models.yaml`](../models.yaml) and empirical token usage per harness:
+
+```text
+Estimated Cost = tasks × trials (N) × configs × avg_tokens_per_trial × price_per_token
+```
+
+| Config (`gemini-flash`: \$0.75/1M in, \$3.75/1M out) | Formula (`tasks × trials × avg tokens`) | Pre-Run Estimate (24 tasks) | Actual Spend ([`manifest.json`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/manifest.json)) |
+| :--- | :--- | :---: | :---: |
+| **`hermes-gemini-flash`** | `24 × 1 × ~50.5k tokens` (~49.3k in + 1.2k out) | ~\$0.99 | **\$0.8257** *(20 completed + 4 infra errors)* |
+| **`langgraph-gemini-flash`** | `24 × 1 × ~21.7k tokens` (~19.9k in + 1.8k out) | ~\$0.52 | **\$0.4911** *(24 completed)* |
+| **Total Experiment (2 configs, 48 trials)** | `24 tasks × 1 trial × 2 configs` | **~\$1.51** | **\$1.3168** (\$0.055 per passing trial) |
+
+### How We Reduce Cost (Caching, Early Stopping, Sampling)
+
+1. **Prompt Caching (saves ~50–70% on Hermes):** Hermes reloads its large built-in system prompt and tool schemas (~14k tokens) on every step. Turning on Gemini/Anthropic prefix caching avoids re-billing those static system tokens across a 10–15 step trajectory.
+2. **Early Stopping (saves ~80% of wasted tokens on failing tasks):** When `memory: false` or `skills: []`, agents burned 66k–95k tokens running `find /` and `grep` across 20 steps (`mem-deploy-convention`, `skill-changelog-entry`). Failing fast when `/agent-home/MEMORY.md` or `/io/skills/` is empty—or capping consecutive identical search commands—eliminates these 20-step search spirals.
+3. **Stratified Sampling & Staged `N` (saves ~75% during iteration):** Instead of running `24 tasks × 3 trials` (\$4.50) on every commit, use a 2-stage gate: run **1 task per bucket at `N = 1`** (5 tasks ≈ \$0.30) first, and only expand to all 24 tasks or `N = 3` on buckets that show non-zero variance.
+
+---
+
+## 5. Conclusions & Recommendations
 
 1. **Same model = same task accuracy (12 / 20 vs. 12 / 20 on shared tasks).** Across every task where the API had quota, Hermes and LangGraph passed and failed the exact same tasks (`verdict: NOISE`).
 2. **LangGraph is 41% cheaper per pass and 38% faster at median.** Because LangGraph exposes only 4–6 benchmark tools instead of Hermes's full workspace/session/skill toolset, it uses less than half the tokens overall.
