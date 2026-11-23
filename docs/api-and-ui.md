@@ -13,10 +13,7 @@ The platform can be driven either from the **React Web UI + Fastify TypeScript A
 cp .env.example .env
 # Add GEMINI_API_KEY (and optional ANTHROPIC_API_KEY / OPENROUTER_API_KEY) to .env
 
-# 1. Build the isolated harness worker images once
-docker compose --profile workers build
-
-# 2. Start the TypeScript API + React Web UI container on http://localhost:3000
+# Builds the API/UI + both isolated worker images and starts http://localhost:3000
 docker compose up --build
 ```
 

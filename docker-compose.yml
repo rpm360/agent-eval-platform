@@ -1,8 +1,29 @@
 services:
+  worker-hermes:
+    image: agent-eval-hermes:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.hermes
+    command: ["true"]
+    restart: "no"
+
+  worker-langgraph:
+    image: agent-eval-langgraph:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.langgraph
+    command: ["true"]
+    restart: "no"
+
   app:
     build:
       context: .
       dockerfile: Dockerfile.app
+    depends_on:
+      worker-hermes:
+        condition: service_completed_successfully
+      worker-langgraph:
+        condition: service_completed_successfully
     ports:
       - "3000:3000"
     env_file:
@@ -18,18 +39,3 @@ services:
       - ./calibration:/app/calibration
       - ./models.yaml:/app/models.yaml
       - ./.env:/app/.env
-
-  # Optional: build worker images with `docker compose --profile workers build`
-  worker-hermes:
-    image: agent-eval-hermes:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.hermes
-    profiles: ["workers"]
-
-  worker-langgraph:
-    image: agent-eval-langgraph:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.langgraph
-    profiles: ["workers"]
