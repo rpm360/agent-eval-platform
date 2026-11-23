@@ -17,6 +17,7 @@ services:
       - ./configs:/app/configs
       - ./calibration:/app/calibration
       - ./models.yaml:/app/models.yaml
+      - ./.env:/app/.env
 
   # Optional: build worker images with `docker compose --profile workers build`
   worker-hermes:

@@ -579,36 +579,58 @@ export default function App() {
             <section className="rounded-lg border border-slate-800 bg-slate-900/50 p-5">
               <h2 className="mb-3 text-base font-semibold text-white">Failure Breakdown</h2>
               <div className="grid gap-4 md:grid-cols-2">
-                {Object.entries(expDetail.failures).map(([cfg, info]) => (
-                  <div key={cfg} className="rounded border border-slate-800 bg-slate-950 p-3 text-xs">
-                    <div className="mb-2 flex justify-between font-mono font-semibold text-white">
-                      <span>{cfg}</span>
-                      <span>{info.failed} / {info.total} failed</span>
+                {Object.entries(expDetail.failures).map(([cfg, info]) => {
+                  const summary = expDetail.summaries[cfg];
+                  const passedCount = summary ? Math.round(summary.pass_rate * summary.completed) : 0;
+                  const infraCount = summary?.infra_errors ?? 0;
+                  const agentFailedCount = Math.max(0, info.failed - infraCount);
+                  return (
+                    <div key={cfg} className="rounded border border-slate-800 bg-slate-950 p-3 text-xs">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 font-mono font-semibold text-white">
+                        <span>{cfg}</span>
+                        <span className="text-[11px] font-normal text-slate-300">
+                          <span className="text-emerald-400">{passedCount} passed</span>
+                          {" · "}
+                          <span className={agentFailedCount ? "text-rose-400" : "text-slate-400"}>
+                            {agentFailedCount} failed
+                          </span>
+                          {infraCount > 0 && (
+                            <>
+                              {" · "}
+                              <span className="text-amber-400">{infraCount} infra err</span>
+                            </>
+                          )}
+                          {" "}
+                          <span className="text-slate-500">({info.total} total)</span>
+                        </span>
+                      </div>
+                      {Object.keys(info.categories).length === 0 ? (
+                        <div className="text-emerald-400">All {info.total} trial(s) passed</div>
+                      ) : (
+                        <ul className="space-y-1">
+                          {Object.entries(info.categories).map(([cat, count]) => (
+                            <li key={cat} className="flex items-center justify-between">
+                              <span className={cat === "infra_error" ? "text-amber-300" : "text-rose-300"}>
+                                {cat}: {count}
+                              </span>
+                              {info.examples[cat]?.[0] && (
+                                <button
+                                  onClick={() => {
+                                    setSelectedTrialId(info.examples[cat][0]);
+                                    setTab("inspector");
+                                  }}
+                                  className="text-sky-400 underline hover:text-sky-300"
+                                >
+                                  inspect example
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
-                    {Object.keys(info.categories).length === 0 ? (
-                      <div className="text-emerald-400">No failures</div>
-                    ) : (
-                      <ul className="space-y-1">
-                        {Object.entries(info.categories).map(([cat, count]) => (
-                          <li key={cat} className="flex items-center justify-between">
-                            <span className="text-amber-300">{cat}: {count}</span>
-                            {info.examples[cat]?.[0] && (
-                              <button
-                                onClick={() => {
-                                  setSelectedTrialId(info.examples[cat][0]);
-                                  setTab("inspector");
-                                }}
-                                className="text-sky-400 underline hover:text-sky-300"
-                              >
-                                inspect example
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>
