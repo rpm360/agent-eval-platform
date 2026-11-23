@@ -154,6 +154,8 @@ def build_litellm_router(model: ModelEntry) -> Router:
         params = {"model": model.litellm}
         if model.api_base:
             params["api_base"] = model.api_base
+            if not model.requires_api_key:
+                params["api_key"] = "unauthenticated"
         model_list.append({"model_name": model.id, "litellm_params": params})
 
     fallbacks: list[dict[str, list[str]]] = []
@@ -247,6 +249,8 @@ class LiteLLMModelAdapter(ModelAdapter):
         if model.api_base:
             env["LITELLM_API_BASE"] = model.api_base
         if not model.requires_api_key or model.provider == "mock":
+            if model.api_base and model.litellm.startswith("openai/"):
+                env["OPENAI_API_KEY"] = "unauthenticated"
             return env
         keys = get_api_keys_for_model(model)
         if not keys:

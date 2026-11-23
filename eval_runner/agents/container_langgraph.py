@@ -7,6 +7,7 @@ and SQLite step checkpointing (`/io/checkpoints.db`), and writes `/io/trace.json
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 import sys
@@ -212,6 +213,8 @@ def _run_langgraph(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
         llm_kwargs["max_tokens"] = int(settings["max_output_tokens"])
     if spec.get("api_base"):
         llm_kwargs["api_base"] = spec["api_base"]
+        if not os.environ.get("OPENAI_API_KEY") and str(spec["litellm_model"]).startswith("openai/"):
+            llm_kwargs["api_key"] = "unauthenticated"
     llm: Any = ChatLiteLLM(**llm_kwargs)
 
     sys_parts = ["You are a precise coding and automation agent working inside /workspace."]

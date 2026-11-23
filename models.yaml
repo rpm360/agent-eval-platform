@@ -58,6 +58,16 @@ models:
       input_per_mtok: 0.0
       output_per_mtok: 0.0
 
+  # Cloud Run vLLM open-weight endpoint (1x NVIDIA L4, allow_unauthenticated=True)
+  - id: Qwen2.5-7B
+    litellm: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
+    provider: vllm
+    api_base: https://oss-llm-test-874570031229.asia-southeast1.run.app/v1
+    requires_api_key: false
+    pricing:
+      input_per_mtok: 0.0
+      output_per_mtok: 0.0
+
   - id: mock
     litellm: mock/scripted
     provider: mock

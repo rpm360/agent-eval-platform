@@ -70,6 +70,15 @@ def test_open_weight_and_openrouter_models_supported(monkeypatch: pytest.MonkeyP
     or_env = get_model_adapter(or_model.adapter).build_container_env(or_model)
     assert or_env == {"OPENROUTER_API_KEY": "or-secret-key"}
 
+    vllm = catalog.get("Qwen2.5-7B")
+    assert vllm.requires_api_key is False
+    assert vllm.api_base == "https://oss-llm-test-874570031229.asia-southeast1.run.app/v1"
+    vllm_env = get_model_adapter(vllm.adapter).build_container_env(vllm)
+    assert vllm_env == {
+        "LITELLM_API_BASE": "https://oss-llm-test-874570031229.asia-southeast1.run.app/v1",
+        "OPENAI_API_KEY": "unauthenticated",
+    }
+
 
 def test_custom_harness_runs_without_touching_core(tmp_path: Path) -> None:
     @register_adapter
