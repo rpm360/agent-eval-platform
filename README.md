@@ -1,96 +1,90 @@
 # Agent Evaluation Platform
 
-Evaluates **Hermes Agent** and **LangGraph** (plus any external `HarnessAdapter`) across **Gemini**, **Claude**, **OpenRouter**, and local **Ollama/vLLM** open-weight models in isolated ephemeral Docker containers, with a **TypeScript API & React Web UI**, LiteLLM Router retries, Inspect-style atomic trial logging & `eval-retry`, deterministic + artifact-aware LLM-as-judge graders, judge calibration (`eval-calibrate`), paired bootstrap / McNemar statistics, and rule-based failure analysis (`eval-failures`).
+A local platform to test and compare AI agents (**Hermes** and **LangGraph**) across different **AI models** (Gemini, Claude, OpenRouter, vLLM, Ollama) and see which setup works better, faster, and cheaper.
 
-## One-Command Local Run (`docker compose up`)
+---
 
-```bash
-cp .env.example .env
-# Add GEMINI_API_KEY (and optional ANTHROPIC_API_KEY / OPENROUTER_API_KEY) to .env
+## 1. Setup
 
-# Build the two isolated agent worker images once
-docker compose --profile workers build
+**What you need installed:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (make sure it is open and running).
 
-# Start the TypeScript API + React UI at http://localhost:3000
-docker compose up --build
-```
+1. **Copy the example environment file and add your API key(s):**
+   ```bash
+   cp .env.example .env
+   ```
+   Open `.env` and paste your key (for example `GEMINI_API_KEY=...` or `ANTHROPIC_API_KEY=...`).
 
-## Local Development (CLI + Dev Servers)
+2. **Start the platform:**
+   ```bash
+   docker compose up
+   ```
+   *(The first run takes a few minutes to build the containers.)*
 
-```bash
-# 1. Install Python dependencies
-uv sync --extra dev
+3. **Open the dashboard:**
+   Go to **http://localhost:3000** in your browser. From there you can pick your harnesses, models, and tasks, click **Run Experiment**, and watch results stream in live.
 
-# 2. Run unit tests (no Docker or API keys required)
-uv run pytest -v
+*(To run the automated tests locally: `uv run pytest -v` and `cd api && npm test`.)*
 
-# 3. Start Docker Desktop, then build the two isolated harness images
-docker build -f Dockerfile.hermes -t agent-eval-hermes:latest .
-docker build -f Dockerfile.langgraph -t agent-eval-langgraph:latest .
+---
 
-# 4. Smoke test end-to-end on the free mock model (Hermes vs LangGraph)
-uv run eval-run \
-  -H hermes -H langgraph \
-  -m mock \
-  --settings configs/default.yaml \
-  --tasks tasks/ \
-  --trials 1
+## 2. How to Add a Task
 
-# 5. Compare configs, inspect a trajectory, or export JSON/CSV
-uv run eval-compare --exp <exp_id>
-uv run eval-inspect --trial results/<exp_id>/trials/<trial_id>.json
-uv run eval-export --exp <exp_id> --format csv
-```
+1. Create a new folder inside `tasks/` (for example `tasks/my-task/`).
+2. Add these files inside it:
+   - `instruction.md` — the prompt telling the agent what to do.
+   - `task.yaml` — basic settings and how to grade it:
+     ```yaml
+     id: my-task
+     category: coding
+     grader:
+       type: deterministic
+       script: tests/test.sh
+     ```
+   - `tests/test.sh` — a script that exits with `0` if the agent passed, or non-zero if it failed.
+   - `fixtures/` *(optional)* — any starter files the agent needs in its workspace.
+   - `seed/MEMORY.md` *(optional)* — memory notes given to the agent when memory is turned on.
 
-## Running Live (Multi-Provider & Open-Weight via LiteLLM)
+---
 
-```bash
-cp .env.example .env
-# Add GEMINI_API_KEY, ANTHROPIC_API_KEY, OPENROUTER_API_KEY, etc. to .env
+## 3. How to Add a Harness
 
-# Run any harness × model matrix with catalog IDs OR raw LiteLLM strings
-uv run eval-run \
-  -H hermes -H langgraph \
-  -m gemini-flash -m openrouter/qwen/qwen-2.5-coder-32b-instruct \
-  --settings configs/default.yaml \
-  --tasks tasks/ \
-  --trials 2
+1. Create a new Python file in `eval_runner/agents/` (for example `eval_runner/agents/my_harness.py`).
+2. Subclass `HarnessAdapter` and add `@register_adapter` above your class:
+   ```python
+   from eval_runner.agents.base import HarnessAdapter, register_adapter
 
-# Memory/skills ablation using configs/nomem.yaml
-uv run eval-run \
-  -H hermes -m gemini-flash \
-  --settings configs/nomem.yaml \
-  --tasks tasks/ \
-  --trials 2
+   @register_adapter
+   class MyHarnessAdapter(HarnessAdapter):
+       name = "my-harness"
+       default_image = "agent-eval-my-harness:latest"
 
-# If any trials hit infra_error (e.g. exhausted 429s), re-run ONLY those trials:
-uv run eval-retry --exp <exp_id>
-```
+       def prepare_container(self, container, task_dir, instruction, config, model, skills_root):
+           # Copy /io/spec.json into the container
+           ...
 
-## Extending the Platform (Zero Core Edits)
+       def build_command(self, config, model):
+           return ["python3", "/opt/eval_agents/run.py", "/io/spec.json"]
+   ```
+3. Restart the app (`docker compose up --build`)—your new harness appears automatically in the UI and CLI.
 
-- **Add a model:** Pass any LiteLLM `provider/model` string directly via `-m` (e.g. `openai/gpt-4o`, `openrouter/...`, `ollama/qwen2.5-coder:7b`), or add an entry to `models.yaml` for custom pricing/fallbacks/`api_base`. For custom non-LiteLLM gateways, register a `ModelAdapter` via `@register_model_adapter` or an `agent_eval.models` entry point.
-- **Add a harness:** Drop one adapter file in `eval_runner/agents/<name>.py` subclassing `HarnessAdapter` and decorated with `@register_adapter` (auto-discovered automatically—no edits to `schemas.py`, `runner.py`, or `agents/__init__.py`), or publish an external package with an `agent_eval.harnesses` entry point.
-- **Add a task:** Create a folder under `tasks/<task-id>/` with `task.yaml`, `instruction.md`, optional `fixtures/` or `seed/MEMORY.md`, and `tests/test.sh`.
+---
 
-## Documentation
+## 4. How to Add a Model
 
-Detailed, modular documentation is organized under [`docs/`](docs/README.md):
+- **Easiest way:** Open [`models.yaml`](models.yaml) and add a new entry:
+  ```yaml
+  - id: my-model
+    litellm: openai/gpt-4o-mini
+    provider: openai
+    env_key: OPENAI_API_KEY
+    pricing:
+      input_per_mtok: 0.15
+      output_per_mtok: 0.60
+  ```
+  *(For self-hosted vLLM or Ollama models that don't need an API key, set `api_base: https://your-endpoint/v1` and `requires_api_key: false`.)*
 
-- **[Documentation Hub & System Overview](docs/README.md)**
-- **[1. System Architecture & Execution Flow](docs/architecture.md)**
-- **[2. Pluggable Harness & Model Adapters](docs/adapters.md)**
-- **[3. Data Model, Isolation & Reproducibility](docs/data-model-and-isolation.md)**
-- **[4. Benchmark Tasks, Graders & Judge Calibration](docs/tasks-and-graders.md)**
-- **[5. Statistical Methodology, Choosing N & Failure Taxonomy](docs/statistics-and-failures.md)**
-- **[6. TypeScript API, Web UI & CLI Reference](docs/api-and-ui.md)**
-- **[7. Cost Model, Assumptions & Known Limits](docs/cost-and-limits.md)**
-- **[8. Real Experiment Report & Inspected Trajectories](docs/experiments.md)**
+- **Quick one-off test:** You can also type any LiteLLM `provider/model` name directly into the custom model box in the Web UI without editing `models.yaml`.
 
-## Assumptions & Known Limits
+---
 
-1. **Docker-in-Docker via host socket:** `docker-compose.yml` mounts `/var/run/docker.sock` so the platform can launch ephemeral `agent-eval-hermes:latest` and `agent-eval-langgraph:latest` sibling containers. Worker images must be built on the host (`docker compose --profile workers build`).
-2. **Stateless trial isolation:** Each trial gets a fresh container and cleaned home directory; `memory: true` seeds `tasks/<id>/seed/MEMORY.md` at trial start rather than persisting across independent tasks.
-3. **Hermes tool allow-list:** `Settings.tools` is enforced strictly in LangGraph; in Hermes it is forwarded via `enabled_toolsets` when supported by the installed `hermes-agent` version and recorded in `session_start`.
-4. **Judge calibration:** `calibration/judge_labels.jsonl` ships with 30 proposed labels that should be reviewed by a human before treating `TRUSTED` (`κ >= 0.6`, `accuracy >= 0.8`) as ground truth.
-5. **Statistical power:** Paired bootstrap CIs and McNemar's test assume task-level pairing; `eval-compare` emits warnings when shared tasks `< 10`, trials/task `< 3`, or infra error rate `> 10%`.
+More details (architecture, statistics, grader calibration, and experiment reports) are in [`docs/`](docs/README.md).
