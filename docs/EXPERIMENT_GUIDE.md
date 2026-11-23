@@ -1,6 +1,6 @@
 # Experiment Guide
 
-[← Back to Docs](./README.md)
+[← Back to Docs](./README.md) · **[Read the Full Experiment Report →](./EXPERIMENT_RESULTS.md)**
 
 ## What We Test (The 24-Task Suite)
 
@@ -28,30 +28,14 @@ Agents are non-deterministic, so comparing Config A against Config B on a single
 - **Compare task-by-task:** We compare A and B on the *same* tasks (ignoring any `infra_error` runs) so easy and hard tasks don't skew the gap.
 - **Confidence range & noise filter:** We use a [paired bootstrap confidence interval](https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html) (10,000 resamples) alongside [McNemar's test](https://en.wikipedia.org/wiki/McNemar%27s_test) for pass/fail flips. If zero sits inside the 95% confidence range, the dashboard calls the difference **`NOISE`** instead of declaring a false winner.
 - **How we pick `N` (repeats per task):**
-  - **`N = 1`** for quick smoke tests when checking that a new model or harness works.
+  - **`N = 1`** for quick smoke tests or full-suite sweeps across all 19–24 tasks.
   - **`N = 2 to 3`** for standard comparisons at low temperature (`0.2`), which smooths out most single-run flukes.
   - **`N = 3 to 5`** for higher-temperature or AI-judged tasks. Beyond 5 repeats, adding *more tasks* improves confidence much faster than running the same task over and over.
 
 ---
 
-## The Core Story: Hermes vs. LangGraph
-
-**The question:** If we give the exact same Gemini model to two different agent harnesses, does the harness change the result?
-
-| Metric (5 tasks × 2 repeats) | Hermes | LangGraph |
-| :--- | :---: | :---: |
-| **Pass rate** | 100% | 100% |
-| **Avg time per attempt** | ~18.7s | ~15.1s |
-| **Avg tokens per attempt** | ~18,500 | ~3,300 |
-| **Quality verdict** | **No real difference (`NOISE`)** | |
-
-- **Quality was a tie, cost was not.** Both solved every task, so the platform rightly called quality a tie. However, LangGraph finished ~20% faster and used **5–6× fewer tokens** on short tasks because Hermes loads a much larger built-in prompt and toolset on every turn.
-- **Traces caught a hidden conflict.** In an early run, Hermes failed a memory task while passing everything else. Inspecting the trace ([`eval-inspect`](../eval_runner/cli.py)) showed why: a *skill* and a *memory note* both talked about "release tags," and Hermes trusted the skill over its memory. Disambiguating the task fixed it immediately.
-
----
-
 ## Honest Limits
 
-- **Small runs have wide error bars.** With fewer than 10 tasks or fewer than 3 repeats per task, only large gaps will clear the noise filter. The dashboard displays an automatic warning when a run is under-powered.
-- **100% vs. 100% only tests efficiency.** When tasks are too easy for both configs, use the results to compare cost and speed, not intelligence.
+- **Small runs have wide error bars.** With `N = 1` or fewer than 10 tasks, only large gaps will clear the noise filter. The dashboard displays an automatic warning whenever a run has `N < 3` or saturated tasks.
+- **Tied pass rates test efficiency, not intelligence.** When two configs solve the exact same tasks (see our **[Hermes vs. LangGraph report](./EXPERIMENT_RESULTS.md)**), use the results to compare token cost, runtime, and failure modes.
 - **AI judges can be generous on borderline answers.** Use a judge from a different model family when comparing two model providers head-to-head.

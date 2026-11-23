@@ -91,4 +91,5 @@ A local platform to test and compare AI agents (**Hermes** and **LangGraph**) ac
 
 - **[Overview & Quickstart](docs/README.md)**
 - **[System Architecture](docs/ARCHITECTURE.md)**
-- **[Experiment Guide & Honest Limits](docs/EXPERIMENT_GUIDE.md)**
+- **[Experiment Guide & Methodology](docs/EXPERIMENT_GUIDE.md)**
+- **[Experiment Report: Hermes vs. LangGraph](docs/EXPERIMENT_RESULTS.md)**

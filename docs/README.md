@@ -58,5 +58,6 @@ Results stream into the dashboard live as each attempt finishes.
 ## Where to Go Next
 
 - **[ARCHITECTURE.md](./ARCHITECTURE.md):** how the pieces fit together, and what happens when you click "Run".
-- **[EXPERIMENT_GUIDE.md](./EXPERIMENT_GUIDE.md):** our flagship A/B test, what we found, and when not to trust the numbers.
+- **[EXPERIMENT_GUIDE.md](./EXPERIMENT_GUIDE.md):** what we test, how graders and stats work, and when not to trust the numbers.
+- **[EXPERIMENT_RESULTS.md](./EXPERIMENT_RESULTS.md):** full scorecard, trace walkthroughs, and conclusions from our Hermes vs. LangGraph experiment (`hermes_langgraph__gemini-flash__2026-11-23_13-32-24`).
 - **[Root README](../README.md):** how to add a task, a harness, or a model.
