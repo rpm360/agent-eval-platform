@@ -15,11 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone NousResearch/hermes-agent and install via its own uv.lock, plus pytest & pyyaml
+# Clone NousResearch/hermes-agent and install via its own uv.lock, plus litellm (unified model interface), pytest & pyyaml
 RUN git clone --depth 1 https://github.com/NousResearch/hermes-agent.git /opt/hermes-agent \
     && cd /opt/hermes-agent \
     && uv sync --frozen --no-dev \
-    && uv pip install --python /opt/hermes-agent/.venv/bin/python "pytest>=8.3.0" "pyyaml>=6.0.2"
+    && uv pip install --python /opt/hermes-agent/.venv/bin/python "litellm>=1.60.0" "pytest>=8.3.0" "pyyaml>=6.0.2"
 
 COPY eval_runner/agents/container_hermes.py /opt/eval_agents/container_hermes.py
 

@@ -22,7 +22,7 @@ from eval_runner.runner import (
 )
 from eval_runner.stats import compare_configs, summarize_config
 
-load_dotenv()
+load_dotenv(override=True)
 console = Console()
 
 

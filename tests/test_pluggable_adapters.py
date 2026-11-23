@@ -278,3 +278,14 @@ def test_cli_matrix_runs_without_config_yaml_files(tmp_path: Path) -> None:
         ("langgraph", "openrouter/deepseek/deepseek-chat-v3-0324"),
     }
 
+
+def test_hermes_and_langgraph_runners_have_no_hardcoded_provider_branches() -> None:
+    for runner_file in (
+        Path("eval_runner/agents/container_hermes.py"),
+        Path("eval_runner/agents/container_langgraph.py"),
+    ):
+        src = runner_file.read_text(encoding="utf-8")
+        for forbidden in ('"anthropic"', '"google"', '"gemini"', '"openrouter"', '"ollama"'):
+            assert forbidden not in src, f"{runner_file} must not hardcode provider {forbidden}"
+
+
