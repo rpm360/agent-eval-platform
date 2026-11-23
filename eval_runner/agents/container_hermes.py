@@ -6,12 +6,122 @@ and writes normalized `/io/trace.jsonl` and `/io/result.json`.
 
 from __future__ import annotations
 
+import contextlib
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import sys
+import threading
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+@contextlib.contextmanager
+def _litellm_openai_bridge(spec: dict[str, Any], usage_totals: dict[str, int]) -> Iterator[str | None]:
+    """Start an in-process OpenAI-compatible `/v1/chat/completions` bridge backed by LiteLLM.
+
+    This ensures Hermes (`AIAgent`) reaches ALL models (Gemini, Claude, OpenRouter, Ollama, etc.)
+    through the exact same common LiteLLM interface as LangGraph and LLM-as-judge—with zero
+    provider-specific branching inside the harness adapter and no `hermes setup` requirement.
+    """
+    try:
+        import litellm
+    except Exception:
+        yield None
+        return
+
+    litellm.drop_params = True
+    target_model = str(spec["litellm_model"])
+    api_base = spec.get("api_base")
+    settings = spec.get("settings") or {}
+    default_temp = float(settings.get("temperature", 0.2))
+    max_out = settings.get("max_output_tokens")
+
+    class _Handler(BaseHTTPRequestHandler):
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+            return
+
+        def do_POST(self) -> None:  # noqa: N802
+            length = int(self.headers.get("Content-Length", "0") or 0)
+            raw_body = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw_body.decode("utf-8"))
+            except Exception:
+                body = {}
+
+            kwargs: dict[str, Any] = {
+                "model": target_model,
+                "messages": body.get("messages") or [],
+                "temperature": body.get("temperature", default_temp),
+            }
+            if body.get("tools"):
+                kwargs["tools"] = body["tools"]
+            if body.get("tool_choice") is not None:
+                kwargs["tool_choice"] = body["tool_choice"]
+            if max_out or body.get("max_tokens"):
+                kwargs["max_tokens"] = int(max_out or body["max_tokens"])
+            if api_base:
+                kwargs["api_base"] = str(api_base)
+
+            is_stream = bool(body.get("stream"))
+            try:
+                if is_stream:
+                    kwargs["stream"] = True
+                    kwargs["stream_options"] = {"include_usage": True}
+                    stream_resp = litellm.completion(**kwargs)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.end_headers()
+                    for chunk in stream_resp:
+                        chunk_dict = chunk.model_dump() if hasattr(chunk, "model_dump") else dict(chunk)
+                        usage = chunk_dict.get("usage") or {}
+                        if usage:
+                            usage_totals["input_tokens"] += int(usage.get("prompt_tokens", 0) or 0)
+                            usage_totals["output_tokens"] += int(usage.get("completion_tokens", 0) or 0)
+                        line = f"data: {json.dumps(chunk_dict)}\n\n".encode("utf-8")
+                        self.wfile.write(line)
+                        self.wfile.flush()
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush()
+                else:
+                    resp = litellm.completion(**kwargs)
+                    payload = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+                    usage = payload.get("usage") or {}
+                    usage_totals["input_tokens"] += int(usage.get("prompt_tokens", 0) or 0)
+                    usage_totals["output_tokens"] += int(usage.get("completion_tokens", 0) or 0)
+                    data = json.dumps(payload).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+            except Exception as exc:
+                err_payload = {
+                    "error": {
+                        "message": str(exc),
+                        "type": type(exc).__name__,
+                        "code": "litellm_bridge_error",
+                    }
+                }
+                data = json.dumps(err_payload).encode("utf-8")
+                self.send_response(502)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{port}/v1"
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def _write_trace(trace_path: Path, seq: int, ev_type: str, payload: dict[str, Any]) -> int:
@@ -147,33 +257,40 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
                 f"## Skill: {skill_id}\n{skill_path.read_text(encoding='utf-8')}"
             )
 
+    usage_totals = {"input_tokens": 0, "output_tokens": 0}
     try:
-        if spec.get("api_base"):
-            os.environ.setdefault("OPENAI_API_BASE", str(spec["api_base"]))
-            os.environ.setdefault("LITELLM_API_BASE", str(spec["api_base"]))
-        agent_kwargs: dict[str, Any] = {
-            "model": spec["litellm_model"],
-            "max_iterations": int(settings.get("max_steps", 20)),
-            "quiet_mode": True,
-        }
-        if settings.get("tools") is not None:
-            agent_kwargs["enabled_toolsets"] = list(settings["tools"])
-        if settings.get("max_output_tokens"):
-            agent_kwargs["max_tokens"] = int(settings["max_output_tokens"])
-        if spec.get("api_base"):
-            agent_kwargs["base_url"] = str(spec["api_base"])
-        try:
-            agent = AIAgent(**agent_kwargs)
-        except TypeError:
-            agent_kwargs.pop("base_url", None)
-            agent = AIAgent(**agent_kwargs)
-        run_kwargs: dict[str, Any] = {
-            "user_message": spec["instruction"],
-            "task_id": spec["task_id"],
-        }
-        if extra_prompt_parts:
-            run_kwargs["system_message"] = "\n\n".join(extra_prompt_parts)
-        res = agent.run_conversation(**run_kwargs)
+        with _litellm_openai_bridge(spec, usage_totals) as bridge_url:
+            effective_base = bridge_url or (str(spec["api_base"]) if spec.get("api_base") else None)
+            if effective_base:
+                os.environ["OPENAI_API_BASE"] = effective_base
+                os.environ["OPENAI_BASE_URL"] = effective_base
+                os.environ.setdefault("OPENAI_API_KEY", "litellm-bridge")
+
+            agent_kwargs: dict[str, Any] = {
+                "model": spec["litellm_model"],
+                "max_iterations": int(settings.get("max_steps", 20)),
+                "quiet_mode": True,
+            }
+            if settings.get("tools") is not None:
+                agent_kwargs["enabled_toolsets"] = list(settings["tools"])
+            if settings.get("max_output_tokens"):
+                agent_kwargs["max_tokens"] = int(settings["max_output_tokens"])
+            if effective_base:
+                agent_kwargs["base_url"] = effective_base
+                agent_kwargs["api_key"] = "litellm-bridge"
+            try:
+                agent = AIAgent(**agent_kwargs)
+            except TypeError:
+                agent_kwargs.pop("base_url", None)
+                agent_kwargs.pop("api_key", None)
+                agent = AIAgent(**agent_kwargs)
+            run_kwargs: dict[str, Any] = {
+                "user_message": spec["instruction"],
+                "task_id": spec["task_id"],
+            }
+            if extra_prompt_parts:
+                run_kwargs["system_message"] = "\n\n".join(extra_prompt_parts)
+            res = agent.run_conversation(**run_kwargs)
     except Exception as exc:
         err_str = str(exc)
         is_infra = any(
@@ -192,6 +309,8 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
                 "503",
                 "502",
                 "api key",
+                "no llm provider configured",
+                "providernotconfigured",
             )
         )
         kind = "infra_error" if is_infra else "agent_error"
@@ -213,7 +332,21 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
             err_blob = final_answer
         if err_blob and any(
             k in err_blob.lower()
-            for k in ("404", "429", "401", "403", "not_found", "rate limit", "503", "502", "api key")
+            for k in (
+                "404",
+                "429",
+                "401",
+                "403",
+                "not_found",
+                "rate limit",
+                "503",
+                "502",
+                "api key",
+                "no llm provider configured",
+                "empty stream",
+                "temporarily unavailable",
+                "didn't answer after",
+            )
         ):
             _write_trace(trace_path, seq, "error", {"kind": "infra_error", "message": err_blob})
             return {"status": "infra_error", "error": err_blob}
@@ -255,14 +388,16 @@ def _run_hermes(spec: dict[str, Any], trace_path: Path) -> dict[str, Any]:
                     )
         usage = res.get("usage") or res.get("token_usage") or {}
         in_tok = int(
-            usage.get("prompt_tokens")
+            usage_totals["input_tokens"]
+            or usage.get("prompt_tokens")
             or usage.get("input_tokens")
             or getattr(agent, "session_input_tokens", 0)
             or getattr(agent, "session_prompt_tokens", 0)
             or 0
         )
         out_tok = int(
-            usage.get("completion_tokens")
+            usage_totals["output_tokens"]
+            or usage.get("completion_tokens")
             or usage.get("output_tokens")
             or getattr(agent, "session_output_tokens", 0)
             or getattr(agent, "session_completion_tokens", 0)
