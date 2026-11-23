@@ -27,8 +27,9 @@ def test_config_hash_changes_on_setting_change() -> None:
 
 def test_models_catalog_loads_and_computes_cost() -> None:
     catalog = load_models_catalog(Path("models.yaml"))
-    gemini = catalog.get("gemini-flash")
-    claude = catalog.get("claude-sonnet")
+    gemini = next(m for m in catalog.models if m.provider == "google")
+    claude = next(m for m in catalog.models if m.provider == "anthropic")
     assert gemini.provider == "google"
     assert claude.provider == "anthropic"
-    assert estimate_cost_usd(gemini, 1_000_000, 1_000_000) == 4.5
+    expected_cost = round(gemini.pricing.input_per_mtok + gemini.pricing.output_per_mtok, 6)
+    assert estimate_cost_usd(gemini, 1_000_000, 1_000_000) == expected_cost

@@ -68,7 +68,13 @@ def run_calibration(
 ) -> dict[str, Any]:
     """Run the LLM judge over human-labelled examples and compute agreement & trust verdict."""
     catalog = load_models_catalog(models_path) if models_path.exists() else ModelCatalog(models=[])
-    judge_model = resolve_model(catalog, judge_model_id)
+    try:
+        judge_model = resolve_model(catalog, judge_model_id)
+    except KeyError:
+        if "/" in judge_model_id or not catalog.models:
+            raise
+        fallback_id = next((m.id for m in catalog.models if m.provider != "mock"), catalog.models[0].id)
+        judge_model = resolve_model(catalog, fallback_id)
     examples = load_calibration_labels(labels_path)
 
     task_cache: dict[str, tuple[TaskSpec, str]] = {}

@@ -1,9 +1,15 @@
+export interface ModelPricing {
+  input_per_mtok: number;
+  output_per_mtok: number;
+}
+
 export interface ModelInfo {
   id: string;
   litellm: string;
   provider: string;
   requires_api_key: boolean;
   api_base?: string | null;
+  pricing?: ModelPricing;
 }
 
 export interface PresetInfo {
