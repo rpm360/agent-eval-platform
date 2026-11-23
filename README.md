@@ -75,8 +75,17 @@ uv run eval-retry --exp <exp_id>
 
 ## Documentation
 
-- [Architecture Summary](docs/agent_evaluation_platform_problem_statement_architecture_summary.md)
-- [Design Notes](docs/notes.md)
+Detailed, modular documentation is organized under [`docs/`](docs/README.md):
+
+- **[Documentation Hub & System Overview](docs/README.md)**
+- **[1. System Architecture & Execution Flow](docs/architecture.md)**
+- **[2. Pluggable Harness & Model Adapters](docs/adapters.md)**
+- **[3. Data Model, Isolation & Reproducibility](docs/data-model-and-isolation.md)**
+- **[4. Benchmark Tasks, Graders & Judge Calibration](docs/tasks-and-graders.md)**
+- **[5. Statistical Methodology, Choosing N & Failure Taxonomy](docs/statistics-and-failures.md)**
+- **[6. TypeScript API, Web UI & CLI Reference](docs/api-and-ui.md)**
+- **[7. Cost Model, Assumptions & Known Limits](docs/cost-and-limits.md)**
+- **[8. Real Experiment Report & Inspected Trajectories](docs/experiments.md)**
 
 ## Assumptions & Known Limits
 
