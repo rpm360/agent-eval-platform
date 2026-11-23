@@ -87,4 +87,9 @@ A local platform to test and compare AI agents (**Hermes** and **LangGraph**) ac
 
 ---
 
-More details (architecture, statistics, grader calibration, and experiment reports) are in [`docs/`](docs/README.md).
+## Documentation
+
+- **[Overview & Quickstart](docs/README.md)**
+- **[System Architecture](docs/ARCHITECTURE.md)**
+- **[Experiment Guide & Methodology](docs/EXPERIMENT_GUIDE.md)**
+- **[Experiment Report: Hermes vs. LangGraph](docs/EXPERIMENT_RESULTS.md)**
