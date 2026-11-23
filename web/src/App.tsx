@@ -81,6 +81,7 @@ export default function App() {
 
   // Live streaming & job state
   const [liveConnected, setLiveConnected] = useState<boolean>(false);
+  const [isLaunching, setIsLaunching] = useState<boolean>(false);
   const [activeJobLogs, setActiveJobLogs] = useState<string[]>([]);
   const [activeJobStatus, setActiveJobStatus] = useState<string>("");
   const [trialFilter, setTrialFilter] = useState<"all" | "failed" | "passed" | "infra">("all");
@@ -201,6 +202,7 @@ export default function App() {
       setExpDetail(null);
       setTrials([]);
       setSelectedExp(targetExpId);
+      setTab("compare");
     }
 
     const es = new EventSource(`/api/jobs/${jobId}/stream`);
@@ -242,28 +244,34 @@ export default function App() {
   }
 
   async function handleLaunchRun() {
-    const models = [...selModels];
-    if (customModel.trim()) models.push(customModel.trim());
-    const allTaskIds = (catalog?.tasks || []).map((t) => t.id);
-    const tasksPaths =
-      allTaskIds.length > 0 && selTasks.length === allTaskIds.length
-        ? ["tasks"]
-        : selTasks.map((id) => `tasks/${id}`);
-    const res = await fetch("/api/experiments/run", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        harnesses: selHarnesses,
-        models,
-        settingsPath,
-        tasksPaths,
-        trials: nTrials,
-        expId: expIdInput.trim() || undefined,
-      }),
-    });
-    const data = await res.json();
-    if (data.jobId) {
-      streamJob(data.jobId, data.expId);
+    if (isLaunching) return;
+    setIsLaunching(true);
+    try {
+      const models = [...selModels];
+      if (customModel.trim()) models.push(customModel.trim());
+      const allTaskIds = (catalog?.tasks || []).map((t) => t.id);
+      const tasksPaths =
+        allTaskIds.length > 0 && selTasks.length === allTaskIds.length
+          ? ["tasks"]
+          : selTasks.map((id) => `tasks/${id}`);
+      const res = await fetch("/api/experiments/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          harnesses: selHarnesses,
+          models,
+          settingsPath,
+          tasksPaths,
+          trials: nTrials,
+          expId: expIdInput.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.jobId) {
+        streamJob(data.jobId, data.expId);
+      }
+    } finally {
+      setTimeout(() => setIsLaunching(false), 3000);
     }
   }
 
@@ -679,10 +687,12 @@ export default function App() {
 
               <button
                 onClick={handleLaunchRun}
-                disabled={activeJobStatus === "running" || selTasks.length === 0}
+                disabled={isLaunching || selTasks.length === 0}
                 className="w-full rounded-lg bg-cyan-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-cyan-500 disabled:opacity-50 dark:bg-cyan-500 dark:text-zinc-950 dark:hover:bg-cyan-400"
               >
-                Run Experiment ({selHarnesses.length} × {selModels.length + (customModel.trim() ? 1 : 0)} arms · {selTasks.length} {selTasks.length === 1 ? "task" : "tasks"})
+                {isLaunching
+                  ? "Launching Experiment..."
+                  : `Run Experiment (${selHarnesses.length} × ${selModels.length + (customModel.trim() ? 1 : 0)} arms · ${selTasks.length} ${selTasks.length === 1 ? "task" : "tasks"})`}
               </button>
             </section>
 
@@ -737,9 +747,45 @@ export default function App() {
         )}
 
         {/* TAB 2: Compare & Failures */}
-        {tab === "compare" && expDetail && (
+        {tab === "compare" && (
           <div className="space-y-5">
-            <section className={`${cardCls} overflow-x-auto p-5`}>
+            {(activeJobStatus === "running" ||
+              !expDetail ||
+              (activeExpMeta?.expectedTrials && activeExpMeta.trialCount < activeExpMeta.expectedTrials)) && (
+              <div className={`${cardCls} flex flex-wrap items-center justify-between gap-4 p-4`}>
+                <div className="flex items-center gap-3">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                  <div>
+                    <div className="text-xs font-semibold text-zinc-900 dark:text-white">
+                      {activeExpMeta
+                        ? `Running ${selectedExp} — ${activeExpMeta.trialCount}${activeExpMeta.expectedTrials ? ` / ${activeExpMeta.expectedTrials}` : ""} trials finished`
+                        : `Starting ${selectedExp || "experiment"}...`}
+                    </div>
+                    <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {activeJobLogs[activeJobLogs.length - 1] ||
+                        "Spinning up isolated harness containers and streaming results as each trial finishes..."}
+                    </div>
+                  </div>
+                </div>
+                {progressPct !== null && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-2 w-36 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                    <span className="font-mono text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                      {progressPct}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {expDetail && (
+              <>
+                <section className={`${cardCls} overflow-x-auto p-5`}>
               <h2 className="mb-3 text-sm font-semibold text-zinc-900 dark:text-white">
                 Quality vs Cost vs Latency
               </h2>
@@ -932,6 +978,8 @@ export default function App() {
                 ))}
               </div>
             </section>
+              </>
+            )}
           </div>
         )}
 

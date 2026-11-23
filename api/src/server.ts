@@ -13,10 +13,35 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(__dirname, "..", "..");
 
-function makeExpId(): string {
+function slugPart(val: string): string {
+  return val
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function makeExpId(harnesses: string[] = [], models: string[] = []): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `exp_${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}_${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
+  const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+
+  const hList = Array.from(new Set(harnesses.map(slugPart).filter(Boolean)));
+  const mList = Array.from(
+    new Set(
+      models
+        .map((m) => slugPart(m.includes("/") ? m.split("/").pop() || m : m))
+        .filter(Boolean)
+    )
+  );
+
+  const fmtList = (items: string[], maxItems = 2) => {
+    if (items.length === 0) return "";
+    if (items.length <= maxItems) return items.join("_");
+    return `${items.slice(0, maxItems).join("_")}_+${items.length - maxItems}`;
+  };
+
+  const parts = [fmtList(hList), fmtList(mList), ts].filter(Boolean);
+  return parts.length > 1 ? parts.join("__") : `exp_${ts}`;
 }
 
 async function listExperiments(rootDir: string) {
@@ -357,7 +382,7 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
     if (!body.harnesses?.length || !body.models?.length) {
       return reply.code(400).send({ error: "Select at least one harness and one model." });
     }
-    const expId = body.expId?.trim() || makeExpId();
+    const expId = body.expId?.trim() || makeExpId(body.harnesses, body.models);
     const { bin, prefix } = resolvePythonRunner();
     const cliArgs = [...prefix, "-m", "eval_runner.cli_exec", "run"];
     for (const h of body.harnesses) cliArgs.push("-H", h);

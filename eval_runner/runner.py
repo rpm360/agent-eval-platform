@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import random
+import re
 import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -45,11 +46,18 @@ from eval_runner.schemas import (
 
 
 def atomic_write_text(path: Path, text: str) -> None:
-    """Write atomically via temp file + os.replace so partial crashes never corrupt JSON."""
+    """Write atomically via temp file + os.replace, with VirtioFS bind-mount fallback."""
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
+    try:
+        os.replace(tmp, path)
+    except FileNotFoundError:
+        path.write_text(text, encoding="utf-8")
+        try:
+            tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def discover_tasks(tasks_path: Path | list[Path]) -> list[Path]:
@@ -352,6 +360,32 @@ def _load_base_settings(settings_path: Path | None) -> Settings:
     return Settings.model_validate(raw)
 
 
+def _slug_part(val: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", val.strip()).strip("-")
+
+
+def _default_exp_id(resolved_configs: list[tuple[ConfigSpec, ModelEntry]]) -> str:
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    harnesses = list(dict.fromkeys(_slug_part(c.harness) for c, _ in resolved_configs if c.harness))
+    models = list(
+        dict.fromkeys(
+            _slug_part(m.id.rsplit("/", 1)[-1] if "/" in m.id else m.id)
+            for _, m in resolved_configs
+            if m.id
+        )
+    )
+
+    def _fmt(items: list[str], limit: int = 2) -> str:
+        if not items:
+            return ""
+        if len(items) <= limit:
+            return "_".join(items)
+        return f"{'_'.join(items[:limit])}_+{len(items) - limit}"
+
+    parts = [p for p in (_fmt(harnesses), _fmt(models), ts) if p]
+    return "__".join(parts) if len(parts) > 1 else f"exp_{ts}"
+
+
 def run_experiment(
     *,
     config_paths: list[Path] | None = None,
@@ -418,7 +452,7 @@ def run_experiment(
     if not resolved_configs:
         raise ValueError("No configs to run. Pass --config or --harness + --model.")
 
-    exp_id = experiment_id or f"exp_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+    exp_id = experiment_id or _default_exp_id(resolved_configs)
     exp_dir = results_dir / exp_id
     exp_dir.mkdir(parents=True, exist_ok=True)
     save_experiment_manifest(
