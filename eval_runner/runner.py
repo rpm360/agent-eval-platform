@@ -52,11 +52,24 @@ def atomic_write_text(path: Path, text: str) -> None:
     os.replace(tmp, path)
 
 
-def discover_tasks(tasks_path: Path) -> list[Path]:
-    """Return a sorted list of task directories (supports either a single task or a folder)."""
-    if (tasks_path / "instruction.md").exists():
-        return [tasks_path]
-    dirs = [p for p in sorted(tasks_path.iterdir()) if p.is_dir() and (p / "instruction.md").exists()]
+def discover_tasks(tasks_path: Path | list[Path]) -> list[Path]:
+    """Return a deduplicated, sorted list of task directories from one or more paths."""
+    paths = list(tasks_path) if isinstance(tasks_path, (list, tuple)) else [tasks_path]
+    seen: set[Path] = set()
+    dirs: list[Path] = []
+    for tp in paths:
+        if (tp / "instruction.md").exists():
+            resolved = tp.resolve()
+            if resolved not in seen:
+                seen.add(resolved)
+                dirs.append(tp)
+        elif tp.exists() and tp.is_dir():
+            for p in sorted(tp.iterdir()):
+                if p.is_dir() and (p / "instruction.md").exists():
+                    resolved = p.resolve()
+                    if resolved not in seen:
+                        seen.add(resolved)
+                        dirs.append(p)
     if not dirs:
         raise FileNotFoundError(f"No tasks (with instruction.md) found under {tasks_path}")
     return dirs
@@ -345,7 +358,7 @@ def run_experiment(
     harnesses: list[str] | None = None,
     models: list[str] | None = None,
     settings_path: Path | None = None,
-    tasks_path: Path,
+    tasks_path: Path | list[Path] = Path("tasks"),
     n_trials: int = 1,
     concurrency: int = 2,
     seed: int = 42,
@@ -446,7 +459,12 @@ def run_experiment(
             for cfg, model, tdir, idx in jobs
         ]
         for fut in as_completed(futures):
-            results.append(fut.result())
+            res = fut.result()
+            results.append(res)
+            print(
+                f"[AEP_TRIAL] {json.dumps({'experiment_id': exp_id, 'trial_id': res.trial_id, 'status': res.status, 'passed': res.passed, 'score': res.score})}",
+                flush=True,
+            )
 
     return exp_id, results
 
@@ -505,7 +523,12 @@ def retry_experiment(
             for cfg, model, tdir, idx in to_run
         ]
         for fut in as_completed(futures):
-            retried.append(fut.result())
+            res = fut.result()
+            retried.append(res)
+            print(
+                f"[AEP_TRIAL] {json.dumps({'experiment_id': experiment_id, 'trial_id': res.trial_id, 'status': res.status, 'passed': res.passed, 'score': res.score})}",
+                flush=True,
+            )
 
     return retried
 

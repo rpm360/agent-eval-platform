@@ -31,6 +31,7 @@ export interface ExperimentSummaryItem {
   id: string;
   createdAt: string | null;
   configs: string[];
+  expectedTrials: number | null;
   trialCount: number;
   passedCount: number;
   infraErrors: number;

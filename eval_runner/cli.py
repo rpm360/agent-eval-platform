@@ -65,7 +65,9 @@ def run_cmd() -> None:
             "--settings",
             help="Optional YAML file with shared Settings for --harness/--model runs",
         ),
-        tasks: Path = typer.Option(Path("tasks"), "--tasks", "-t", help="Tasks directory or single task"),
+        tasks: list[Path] = typer.Option(
+            [], "--tasks", "-t", help="One or more task directories (defaults to tasks/)"
+        ),
         trials: int = typer.Option(1, "--trials", "-n", help="Repeated trials (N) per task"),
         concurrency: int = typer.Option(
             int(os.environ.get("EVAL_CONCURRENCY", "2")), "--concurrency", "-j"
@@ -79,7 +81,7 @@ def run_cmd() -> None:
             harnesses=harness,
             models=model,
             settings_path=settings,
-            tasks_path=tasks,
+            tasks_path=tasks if tasks else Path("tasks"),
             n_trials=trials,
             concurrency=concurrency,
             seed=seed,

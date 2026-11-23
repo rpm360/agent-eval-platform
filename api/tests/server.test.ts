@@ -18,7 +18,17 @@ test("API health, catalog, experiments, and CSV export", async () => {
 
   const exps = await app.inject({ method: "GET", url: "/api/experiments" });
   assert.equal(exps.statusCode, 200);
-  assert.ok(Array.isArray(exps.json().experiments));
+  const expList = exps.json().experiments;
+  assert.ok(Array.isArray(expList));
+  if (expList.length > 0) {
+    assert.ok("expectedTrials" in expList[0]);
+  }
+
+  // Test SSE /api/events initial snapshot
+  const sse = await app.inject({ method: "GET", url: "/api/events?once=1" });
+  assert.equal(sse.statusCode, 200);
+  assert.match(sse.headers["content-type"] || "", /text\/event-stream/);
+  assert.ok(sse.body.includes("event: experiments"));
 
   const verify = await app.inject({ method: "GET", url: "/api/experiments/verify_v3" });
   if (verify.statusCode === 200) {
