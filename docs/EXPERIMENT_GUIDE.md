@@ -2,6 +2,25 @@
 
 [← Back to Docs](./README.md)
 
+## What We Test (The 24-Task Suite)
+
+The benchmark ships with **24 tasks** grouped into five real-world buckets, including tasks specifically designed to tell **Memory ON vs. OFF** and **Skills ON vs. OFF** apart:
+
+| Bucket | Count | Tasks Included | How It's Graded |
+| :--- | :---: | :--- | :--- |
+| **Coding & Bug Fixes** | 5 | `code-fix-lru-cache`, `code-fix-binary-search`, `code-fix-multi-file`, `code-implement-roman`, `code-add-type-validation` | Hidden `pytest` unit tests |
+| **Math, Data & Files** | 8 | `calc-compound-interest`, `calc-loan-amortization`, `file-csv-aggregate`, `data-csv-join`, `data-json-transform`, `data-log-error-counts`, `fs-find-largest-file`, `fs-normalize-filenames` | Exact value, JSON & file-state checks |
+| **Memory Recall** | 3 | `mem-deploy-convention`, `mem-api-version-header`, `mem-db-table-naming` | Deterministic check on rules from `MEMORY.md` |
+| **Procedural Skills** | 3 | `skill-release-tag`, `skill-changelog-entry`, `skill-commit-message` | Deterministic check on formats from `SKILL.md` |
+| **Writing & Reasoning** | 5 | `judge-code-review`, `judge-api-docs`, `judge-explain-bug`, `judge-incident-postmortem`, `judge-support-reply` | LLM-as-judge with a rubric |
+
+### How Grading Stays Fair
+
+- **Deterministic graders (19 tasks):** Verification scripts and `pytest` suites are injected into the container *only after* the agent exits, so an agent can never read or tamper with the tests.
+- **Calibrated AI judge (5 tasks):** Open-ended tasks are graded against a strict rubric at `temperature = 0`. Before trusting the judge, we tested it against **30 human-labelled examples**—it matched human pass/fail calls **93% of the time** (Cohen's κ ≈ 0.87, well above our 0.60 trust bar).
+
+---
+
 ## The Core Story: Hermes vs. LangGraph
 
 **The question:** We gave the same model (Gemini) to two different agent harnesses. Does the harness change the outcome?
@@ -30,12 +49,6 @@ Early on, Hermes kept failing a memory task while passing everything else. Repla
 Without step-by-step traces, that failure would have looked like "Hermes is bad at memory." In fact the task itself was ambiguous. We fixed the task, and Hermes passed all three memory tasks.
 
 **Why it matters:** the platform tells you *why* a score changed, not just *that* it changed.
-
----
-
-## Trusting the Judge
-
-Five writing tasks are scored by an AI judge. Before relying on it, we compared it against 30 human-labelled answers. It agreed **93% of the time** (Cohen's κ ≈ 0.87, well above our 0.6 bar). Its two misses were borderline answers that it scored a little too generously.
 
 ---
 
