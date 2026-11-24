@@ -1,21 +1,32 @@
-"""Core trial orchestrator: atomic per-trial JSON logging, concurrency, and `eval-retry`."""
+"""Core trial orchestrator: isolated sandbox execution, concurrency, and `eval-retry`."""
 
 from __future__ import annotations
 
-import csv
-import hashlib
 import json
-import os
+import logging
 import random
-import re
-import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from eval_runner.agents import get_adapter
+from docker.models.containers import Container
+
+from eval_runner.agents import HarnessAdapter, get_adapter
+from eval_runner.config_resolver import (
+    build_default_experiment_id,
+    discover_tasks,
+    resolve_experiment_configs,
+)
+from eval_runner.constants import (
+    DEFAULT_CONCURRENCY,
+    DEFAULT_RANDOM_SEED,
+    INFRA_ERROR_EXIT_CODE,
+    MAX_STDIO_TAIL_CHARS,
+    TRIAL_STREAM_PREFIX,
+    TrialStatus,
+)
 from eval_runner.container import (
     ContainerInfraError,
     ephemeral_container,
@@ -33,63 +44,144 @@ from eval_runner.models import (
     load_models_catalog,
     resolve_model,
 )
+from eval_runner.persistence import (
+    atomic_write_text,
+    export_experiment,
+    load_experiment_trials,
+    save_experiment_manifest,
+)
 from eval_runner.schemas import (
     ConfigSpec,
     GradeResult,
     ModelCatalog,
     ModelEntry,
-    Settings,
     TaskSpec,
+    TraceEvent,
     TrialResult,
     compute_config_hash,
 )
 
+logger = logging.getLogger(__name__)
 
-def atomic_write_text(path: Path, text: str) -> None:
-    """Write atomically via temp file + os.replace, with VirtioFS bind-mount fallback."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    try:
-        os.replace(tmp, path)
-    except FileNotFoundError:
-        path.write_text(text, encoding="utf-8")
-        try:
-            tmp.unlink(missing_ok=True)
-        except Exception:
-            pass
+TrialJob = tuple[ConfigSpec, ModelEntry, Path, int]
 
-
-def discover_tasks(tasks_path: Path | list[Path]) -> list[Path]:
-    """Return a deduplicated, sorted list of task directories from one or more paths."""
-    paths = list(tasks_path) if isinstance(tasks_path, (list, tuple)) else [tasks_path]
-    seen: set[Path] = set()
-    dirs: list[Path] = []
-    for tp in paths:
-        if (tp / "instruction.md").exists():
-            resolved = tp.resolve()
-            if resolved not in seen:
-                seen.add(resolved)
-                dirs.append(tp)
-        elif tp.exists() and tp.is_dir():
-            for p in sorted(tp.iterdir()):
-                if p.is_dir() and (p / "instruction.md").exists():
-                    resolved = p.resolve()
-                    if resolved not in seen:
-                        seen.add(resolved)
-                        dirs.append(p)
-    if not dirs:
-        raise FileNotFoundError(f"No tasks (with instruction.md) found under {tasks_path}")
-    return dirs
+__all__ = [
+    "atomic_write_text",
+    "discover_tasks",
+    "export_experiment",
+    "load_experiment_trials",
+    "retry_experiment",
+    "run_experiment",
+    "run_single_trial",
+    "save_experiment_manifest",
+]
 
 
-def _build_container_env(adapter: Any, config: ConfigSpec, model: ModelEntry) -> dict[str, str]:
+def _build_container_env(
+    adapter: HarnessAdapter,
+    config: ConfigSpec,
+    model: ModelEntry,
+) -> dict[str, str]:
     """Compose provider/auth env from the ModelAdapter and harness env from the HarnessAdapter."""
     model_adapter = get_model_adapter(model.adapter)
     return {
         **model_adapter.build_container_env(model),
         **adapter.get_container_env(config, model),
     }
+
+
+def _format_trial_id(config_name: str, config_hash: str, task_id: str, trial_index: int) -> str:
+    return f"{config_name}_{config_hash}_{task_id}_t{trial_index}"
+
+
+def _is_runner_infra_failure(
+    result_data: dict[str, Any],
+    exit_code: int,
+    timed_out: bool,
+) -> bool:
+    """Determine whether container execution failed due to infrastructure rather than agent logic."""
+    if result_data.get("status") == TrialStatus.INFRA_ERROR:
+        return True
+    if exit_code == INFRA_ERROR_EXIT_CODE:
+        return True
+    return not timed_out and (exit_code != 0 or not result_data)
+
+
+def _build_infra_error_trial(
+    *,
+    trial_id: str,
+    experiment_id: str,
+    config: ConfigSpec,
+    config_hash: str,
+    model_id: str,
+    task_id: str,
+    trial_index: int,
+    runtime_sec: float,
+    error_message: str,
+    trace_path: Path | None = None,
+) -> TrialResult:
+    """Construct an `infra_error` TrialResult (Golden Rule: never score infra failures as 0.0)."""
+    return TrialResult(
+        trial_id=trial_id,
+        experiment_id=experiment_id,
+        config_name=config.name,
+        config_hash=config_hash,
+        harness=config.harness,
+        model=model_id,
+        task_id=task_id,
+        trial_index=trial_index,
+        status=TrialStatus.INFRA_ERROR,
+        runtime_sec=runtime_sec,
+        failure_category=TrialStatus.INFRA_ERROR,
+        error_message=error_message,
+        trace_path=str(trace_path) if trace_path is not None else None,
+    )
+
+
+def _evaluate_completed_container(
+    *,
+    container: Container,
+    task_dir: Path,
+    task: TaskSpec,
+    instruction: str,
+    config: ConfigSpec,
+    catalog: ModelCatalog,
+    final_answer: str,
+    total_tokens: int,
+    timed_out: bool,
+    timeout_sec: int,
+) -> GradeResult:
+    """Enforce token/timeout guardrails first; otherwise invoke the configured task grader."""
+    token_budget = config.settings.max_total_tokens
+    if token_budget is not None and total_tokens > token_budget:
+        return GradeResult(
+            grader_type=task.grader.type,
+            score=0.0,
+            passed=False,
+            reasoning=f"Token budget exceeded: {total_tokens} > max_total_tokens ({token_budget}).",
+        )
+    if timed_out:
+        return GradeResult(
+            grader_type=task.grader.type,
+            score=0.0,
+            passed=False,
+            reasoning=f"Agent timed out after {timeout_sec}s.",
+        )
+    return grade_trial(
+        container=container,
+        task_dir=task_dir,
+        task=task,
+        instruction=instruction,
+        final_answer=final_answer,
+        catalog=catalog,
+    )
+
+
+def _persist_trace_events(trace_path: Path, events: list[TraceEvent]) -> None:
+    if not events:
+        return
+    serialized_lines = "\n".join(event.model_dump_json() for event in events) + "\n"
+    atomic_write_text(trace_path, serialized_lines)
 
 
 def run_single_trial(
@@ -104,10 +196,10 @@ def run_single_trial(
     skills_root: Path = Path("skills"),
     image: str | None = None,
 ) -> TrialResult:
-    """Execute one isolated trial and atomically persist its result + trace."""
+    """Execute one isolated container trial and atomically persist its result and trajectory."""
     task = TaskSpec.from_dir(task_dir)
     config_hash = compute_config_hash(config, model)
-    trial_id = f"{config.name}_{config_hash}_{task.id}_t{trial_index}"
+    trial_id = _format_trial_id(config.name, config_hash, task.id, trial_index)
     trials_dir = results_dir / experiment_id / "trials"
     trial_json_path = trials_dir / f"{trial_id}.json"
     trace_path = trials_dir / f"{trial_id}.trace.jsonl"
@@ -119,16 +211,14 @@ def run_single_trial(
 
     start_time = time.time()
     try:
-        env = _build_container_env(adapter, config, model)
-        client = get_docker_client()
+        container_env = _build_container_env(adapter, config, model)
+        docker_client = get_docker_client()
         try:
-            with ephemeral_container(client, image=resolved_image, env=env) as container:
-                # 1. Seed workspace fixtures (if any)
+            with ephemeral_container(docker_client, image=resolved_image, env=container_env) as container:
                 fixtures_dir = task_dir / "fixtures"
                 if fixtures_dir.exists():
                     put_directory(container, "/workspace", fixtures_dir)
 
-                # 2. Let the harness adapter prepare spec, memory, and skills
                 adapter.prepare_container(
                     container=container,
                     task_dir=task_dir,
@@ -138,80 +228,57 @@ def run_single_trial(
                     skills_root=skills_root,
                 )
 
-                # 3. Execute agent with real timeout watchdog
-                cmd = adapter.build_command(config, model)
+                command = adapter.build_command(config, model)
                 exit_code, raw_output, timed_out = exec_with_timeout(
-                    container, cmd, timeout_sec=timeout_sec, workdir="/workspace"
+                    container, command, timeout_sec=timeout_sec, workdir="/workspace"
                 )
                 runtime_sec = round(time.time() - start_time, 2)
 
-                result_data, events = adapter.extract_outputs(container)
+                result_data, trace_events = adapter.extract_outputs(container)
+                _persist_trace_events(trace_path, trace_events)
+                persisted_trace = trace_path if trace_events else None
 
-                # Persist trace atomically
-                if events:
-                    trace_lines = "\n".join(ev.model_dump_json() for ev in events) + "\n"
-                    atomic_write_text(trace_path, trace_lines)
-
-                # Classify infrastructure / runner crash errors (Golden Rule: NEVER score as 0.0)
-                if (
-                    result_data.get("status") == "infra_error"
-                    or exit_code == 2
-                    or (not timed_out and (exit_code != 0 or not result_data))
-                ):
-                    err_msg = str(
+                if _is_runner_infra_failure(result_data, exit_code, timed_out):
+                    output_tail = raw_output[-MAX_STDIO_TAIL_CHARS:]
+                    error_message = str(
                         result_data.get("error")
-                        or f"Runner exited with code {exit_code} (no result.json). Output:\n{raw_output[-2000:]}"
+                        or f"Runner exited with code {exit_code} (no result.json). Output:\n{output_tail}"
                     )
-                    trial = TrialResult(
+                    infra_trial = _build_infra_error_trial(
                         trial_id=trial_id,
                         experiment_id=experiment_id,
-                        config_name=config.name,
+                        config=config,
                         config_hash=config_hash,
-                        harness=config.harness,
-                        model=model.id,
+                        model_id=model.id,
                         task_id=task.id,
                         trial_index=trial_index,
-                        status="infra_error",
                         runtime_sec=runtime_sec,
-                        failure_category="infra_error",
-                        error_message=err_msg,
-                        trace_path=str(trace_path) if events else None,
+                        error_message=error_message,
+                        trace_path=persisted_trace,
                     )
-                    atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
-                    return trial
+                    atomic_write_text(trial_json_path, infra_trial.model_dump_json(indent=2))
+                    return infra_trial
 
-                in_tok = int(result_data.get("input_tokens", 0) or 0)
-                out_tok = int(result_data.get("output_tokens", 0) or 0)
-                total_tok = in_tok + out_tok
-                cost_usd = estimate_cost_usd(model, in_tok, out_tok)
+                input_tokens = int(result_data.get("input_tokens", 0) or 0)
+                output_tokens = int(result_data.get("output_tokens", 0) or 0)
+                total_tokens = input_tokens + output_tokens
+                cost_usd = estimate_cost_usd(model, input_tokens, output_tokens)
+                final_answer = str(result_data.get("final_answer", ""))
 
-                budget = config.settings.max_total_tokens
-                if budget is not None and total_tok > budget:
-                    grade = GradeResult(
-                        grader_type=task.grader.type,
-                        score=0.0,
-                        passed=False,
-                        reasoning=f"Token budget exceeded: {total_tok} > max_total_tokens ({budget}).",
-                    )
-                elif timed_out:
-                    grade = GradeResult(
-                        grader_type=task.grader.type,
-                        score=0.0,
-                        passed=False,
-                        reasoning=f"Agent timed out after {timeout_sec}s.",
-                    )
-                else:
-                    # 4. Run verifier ONLY after agent exits
-                    grade = grade_trial(
-                        container=container,
-                        task_dir=task_dir,
-                        task=task,
-                        instruction=instruction,
-                        final_answer=str(result_data.get("final_answer", "")),
-                        catalog=catalog,
-                    )
+                grade = _evaluate_completed_container(
+                    container=container,
+                    task_dir=task_dir,
+                    task=task,
+                    instruction=instruction,
+                    config=config,
+                    catalog=catalog,
+                    final_answer=final_answer,
+                    total_tokens=total_tokens,
+                    timed_out=timed_out,
+                    timeout_sec=timeout_sec,
+                )
 
-                trial = TrialResult(
+                completed_trial = TrialResult(
                     trial_id=trial_id,
                     experiment_id=experiment_id,
                     config_name=config.name,
@@ -220,170 +287,91 @@ def run_single_trial(
                     model=model.id,
                     task_id=task.id,
                     trial_index=trial_index,
-                    status="completed",
+                    status=TrialStatus.COMPLETED,
                     score=grade.score,
                     passed=grade.passed,
                     runtime_sec=runtime_sec,
-                    input_tokens=in_tok,
-                    output_tokens=out_tok,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
                     cost_usd=cost_usd,
                     steps=int(result_data.get("steps", 0) or 0),
-                    final_answer=str(result_data.get("final_answer", "")),
+                    final_answer=final_answer,
                     grade=grade,
-                    trace_path=str(trace_path) if events else None,
+                    trace_path=str(persisted_trace) if persisted_trace is not None else None,
                 )
-                failure_cat = classify_failure(trial, events, task, config.settings)
-                if failure_cat is not None:
-                    trial = trial.model_copy(update={"failure_category": failure_cat})
-                atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
-                return trial
+                failure_category = classify_failure(
+                    completed_trial, trace_events, task, config.settings
+                )
+                if failure_category is not None:
+                    completed_trial = completed_trial.model_copy(
+                        update={"failure_category": failure_category}
+                    )
+                atomic_write_text(trial_json_path, completed_trial.model_dump_json(indent=2))
+                return completed_trial
         finally:
-            client.close()
+            docker_client.close()
     except (ContainerInfraError, InfraModelError) as exc:
-        trial = TrialResult(
+        infra_trial = _build_infra_error_trial(
             trial_id=trial_id,
             experiment_id=experiment_id,
-            config_name=config.name,
+            config=config,
             config_hash=config_hash,
-            harness=config.harness,
-            model=model.id,
+            model_id=model.id,
             task_id=task.id,
             trial_index=trial_index,
-            status="infra_error",
-            failure_category="infra_error",
             runtime_sec=round(time.time() - start_time, 2),
             error_message=str(exc),
         )
-        atomic_write_text(trial_json_path, trial.model_dump_json(indent=2))
-        return trial
+        atomic_write_text(trial_json_path, infra_trial.model_dump_json(indent=2))
+        return infra_trial
 
 
-def _git_provenance() -> dict[str, Any]:
-    try:
-        sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
-        dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True, stderr=subprocess.DEVNULL).strip())
-        return {"git_commit": sha, "git_dirty": dirty}
-    except Exception:
-        return {"git_commit": None, "git_dirty": None}
-
-
-def _hash_task_dir(task_dir: Path) -> str:
-    h = hashlib.sha256()
-    for p in sorted(task_dir.rglob("*")):
-        if p.is_file():
-            h.update(str(p.relative_to(task_dir)).encode("utf-8"))
-            h.update(p.read_bytes())
-    return h.hexdigest()[:12]
-
-
-def _image_digests(configs: list[tuple[ConfigSpec, ModelEntry]], override_image: str | None) -> dict[str, str]:
-    digests: dict[str, str] = {}
-    try:
-        client = get_docker_client()
-    except Exception:
-        return digests
-    try:
-        for cfg, _ in configs:
-            img = override_image or get_adapter(cfg.harness).default_image
-            if img not in digests:
-                try:
-                    digests[img] = client.images.get(img).id or "unknown"
-                except Exception:
-                    digests[img] = "unavailable"
-    finally:
-        client.close()
-    return digests
-
-
-def save_experiment_manifest(
-    exp_dir: Path,
-    experiment_id: str,
-    configs: list[tuple[ConfigSpec, ModelEntry]],
-    task_dirs: list[Path],
-    n_trials: int,
-    seed: int,
-    override_image: str | None = None,
-) -> None:
-    import importlib.metadata
-
-    try:
-        litellm_ver = importlib.metadata.version("litellm")
-    except Exception:
-        litellm_ver = "unknown"
-
-    manifest = {
+def _emit_trial_stream_event(experiment_id: str, trial: TrialResult) -> None:
+    """Emit structured progress line on stdout consumed by the API/Web SSE job stream."""
+    payload = {
         "experiment_id": experiment_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "n_trials": n_trials,
-        "seed": seed,
-        "provenance": {
-            **_git_provenance(),
-            "litellm_version": litellm_ver,
-            "image_digests": _image_digests(configs, override_image),
-            "task_hashes": {p.name: _hash_task_dir(p) for p in task_dirs},
-        },
-        "configs": [
-            {
-                "config": c.model_dump(mode="json"),
-                "config_hash": compute_config_hash(c, m),
-                "model": m.model_dump(mode="json"),
-            }
-            for c, m in configs
-        ],
-        "tasks": [str(p.resolve()) for p in task_dirs],
+        "trial_id": trial.trial_id,
+        "status": trial.status,
+        "passed": trial.passed,
+        "score": trial.score,
     }
-    atomic_write_text(exp_dir / "manifest.json", json.dumps(manifest, indent=2))
+    sys.stdout.write(f"{TRIAL_STREAM_PREFIX} {json.dumps(payload)}\n")
+    sys.stdout.flush()
 
 
-def load_experiment_trials(exp_dir: Path) -> list[TrialResult]:
-    trials_dir = exp_dir / "trials"
-    if not trials_dir.exists():
-        return []
-    results: list[TrialResult] = []
-    for p in sorted(trials_dir.glob("*.json")):
-        results.append(TrialResult.model_validate_json(p.read_text(encoding="utf-8")))
-    return results
-
-
-def _slugify_model(model_ref: str) -> str:
-    return model_ref.replace("/", "_").replace(":", "_")
-
-
-def _load_base_settings(settings_path: Path | None) -> Settings:
-    if settings_path is None:
-        return Settings()
-    import yaml
-
-    raw = yaml.safe_load(settings_path.read_text(encoding="utf-8")) or {}
-    if isinstance(raw, dict) and "settings" in raw:
-        raw = raw["settings"] or {}
-    return Settings.model_validate(raw)
-
-
-def _slug_part(val: str) -> str:
-    return re.sub(r"[^A-Za-z0-9._-]+", "-", val.strip()).strip("-")
-
-
-def _default_exp_id(resolved_configs: list[tuple[ConfigSpec, ModelEntry]]) -> str:
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    harnesses = list(dict.fromkeys(_slug_part(c.harness) for c, _ in resolved_configs if c.harness))
-    models = list(
-        dict.fromkeys(
-            _slug_part(m.id.rsplit("/", 1)[-1] if "/" in m.id else m.id)
-            for _, m in resolved_configs
-            if m.id
-        )
-    )
-
-    def _fmt(items: list[str], limit: int = 2) -> str:
-        if not items:
-            return ""
-        if len(items) <= limit:
-            return "_".join(items)
-        return f"{'_'.join(items[:limit])}_+{len(items) - limit}"
-
-    parts = [p for p in (_fmt(harnesses), _fmt(models), ts) if p]
-    return "__".join(parts) if len(parts) > 1 else f"exp_{ts}"
+def _execute_trial_jobs(
+    *,
+    experiment_id: str,
+    jobs: list[TrialJob],
+    catalog: ModelCatalog,
+    concurrency: int,
+    results_dir: Path,
+    skills_root: Path,
+    image: str | None,
+) -> list[TrialResult]:
+    """Run scheduled trial jobs across a bounded worker pool and stream completions."""
+    completed_results: list[TrialResult] = []
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as worker_pool:
+        futures = [
+            worker_pool.submit(
+                run_single_trial,
+                experiment_id=experiment_id,
+                task_dir=task_dir,
+                config=harness_config,
+                model=model_entry,
+                catalog=catalog,
+                trial_index=trial_idx,
+                results_dir=results_dir,
+                skills_root=skills_root,
+                image=image,
+            )
+            for harness_config, model_entry, task_dir, trial_idx in jobs
+        ]
+        for future in as_completed(futures):
+            trial_result = future.result()
+            completed_results.append(trial_result)
+            _emit_trial_stream_event(experiment_id, trial_result)
+    return completed_results
 
 
 def run_experiment(
@@ -394,210 +382,100 @@ def run_experiment(
     settings_path: Path | None = None,
     tasks_path: Path | list[Path] = Path("tasks"),
     n_trials: int = 1,
-    concurrency: int = 2,
-    seed: int = 42,
+    concurrency: int = DEFAULT_CONCURRENCY,
+    seed: int = DEFAULT_RANDOM_SEED,
     experiment_id: str | None = None,
     models_path: Path = Path("models.yaml"),
     results_dir: Path = Path("results"),
     skills_root: Path = Path("skills"),
     image: str | None = None,
 ) -> tuple[str, list[TrialResult]]:
-    """Run all (config × task × N) trials with randomized execution order.
-
-    Supports either declarative `--config` YAML files, CLI `--harness` × `--model` matrix
-    expansion (accepting catalog IDs or raw LiteLLM `provider/model` strings), or both.
-    """
+    """Run all `(config x task x N)` trials in randomized order to avoid provider-drift bias."""
     catalog = load_models_catalog(models_path) if models_path.exists() else ModelCatalog(models=[])
     task_dirs = discover_tasks(tasks_path)
-    resolved_configs: list[tuple[ConfigSpec, ModelEntry]] = []
+    resolved_configs = resolve_experiment_configs(
+        catalog=catalog,
+        config_paths=config_paths,
+        harnesses=harnesses,
+        models=models,
+        settings_path=settings_path,
+    )
 
-    cfg_paths = list(config_paths or [])
-    harness_list = list(harnesses or [])
-    model_list = list(models or [])
-
-    if cfg_paths and not harness_list and model_list:
-        # Override models on the given template config(s)
-        for cp in cfg_paths:
-            base_cfg = ConfigSpec.from_yaml(cp)
-            for m_ref in model_list:
-                m_entry = resolve_model(catalog, m_ref)
-                cfg = base_cfg.model_copy(
-                    update={"name": f"{base_cfg.harness}-{_slugify_model(m_ref)}", "model": m_ref}
-                )
-                resolved_configs.append((cfg, m_entry))
-    else:
-        for cp in cfg_paths:
-            cfg = ConfigSpec.from_yaml(cp)
-            resolved_configs.append((cfg, resolve_model(catalog, cfg.model)))
-
-        if harness_list or model_list:
-            if not harness_list or not model_list:
-                raise ValueError(
-                    "Provide both --harness and --model for matrix runs (or pass --config)."
-                )
-            base_settings = _load_base_settings(settings_path)
-            for h in harness_list:
-                # Fail fast if harness isn't registered
-                get_adapter(h)
-                for m_ref in model_list:
-                    m_entry = resolve_model(catalog, m_ref)
-                    cfg = ConfigSpec(
-                        name=f"{h}-{_slugify_model(m_ref)}",
-                        harness=h,
-                        model=m_ref,
-                        settings=base_settings,
-                    )
-                    resolved_configs.append((cfg, m_entry))
-
-    if not resolved_configs:
-        raise ValueError("No configs to run. Pass --config or --harness + --model.")
-
-    exp_id = experiment_id or _default_exp_id(resolved_configs)
+    exp_id = experiment_id or build_default_experiment_id(resolved_configs)
     exp_dir = results_dir / exp_id
     exp_dir.mkdir(parents=True, exist_ok=True)
     save_experiment_manifest(
         exp_dir, exp_id, resolved_configs, task_dirs, n_trials, seed, override_image=image
     )
 
-    # Clean up any orphaned containers from prior crashed runs
     try:
         reap_orphan_containers()
-    except Exception:
-        pass
+    except ContainerInfraError as exc:
+        logger.debug("Skipping orphan container cleanup: %s", exc)
 
-    jobs: list[tuple[ConfigSpec, ModelEntry, Path, int]] = []
-    for cfg, model in resolved_configs:
-        for tdir in task_dirs:
-            for idx in range(1, n_trials + 1):
-                jobs.append((cfg, model, tdir, idx))
+    jobs: list[TrialJob] = [
+        (harness_config, model_entry, task_dir, trial_idx)
+        for harness_config, model_entry in resolved_configs
+        for task_dir in task_dirs
+        for trial_idx in range(1, n_trials + 1)
+    ]
+    random.Random(seed).shuffle(jobs)
 
-    # Randomize order across configs so provider drift doesn't bias one config
-    rng = random.Random(seed)
-    rng.shuffle(jobs)
-
-    results: list[TrialResult] = []
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        futures = [
-            pool.submit(
-                run_single_trial,
-                experiment_id=exp_id,
-                task_dir=tdir,
-                config=cfg,
-                model=model,
-                catalog=catalog,
-                trial_index=idx,
-                results_dir=results_dir,
-                skills_root=skills_root,
-                image=image,
-            )
-            for cfg, model, tdir, idx in jobs
-        ]
-        for fut in as_completed(futures):
-            res = fut.result()
-            results.append(res)
-            print(
-                f"[AEP_TRIAL] {json.dumps({'experiment_id': exp_id, 'trial_id': res.trial_id, 'status': res.status, 'passed': res.passed, 'score': res.score})}",
-                flush=True,
-            )
-
+    results = _execute_trial_jobs(
+        experiment_id=exp_id,
+        jobs=jobs,
+        catalog=catalog,
+        concurrency=concurrency,
+        results_dir=results_dir,
+        skills_root=skills_root,
+        image=image,
+    )
     return exp_id, results
 
 
 def retry_experiment(
     *,
     experiment_id: str,
-    concurrency: int = 2,
+    concurrency: int = DEFAULT_CONCURRENCY,
     models_path: Path = Path("models.yaml"),
     results_dir: Path = Path("results"),
     skills_root: Path = Path("skills"),
     image: str | None = None,
 ) -> list[TrialResult]:
-    """Inspect-AI style `eval-retry`: re-run ONLY `infra_error` or missing trials."""
+    """Re-run ONLY `infra_error` or missing trials from an existing experiment manifest."""
     exp_dir = results_dir / experiment_id
     manifest = json.loads((exp_dir / "manifest.json").read_text(encoding="utf-8"))
     catalog = load_models_catalog(models_path) if models_path.exists() else ModelCatalog(models=[])
-    existing = {t.trial_id: t for t in load_experiment_trials(exp_dir)}
+    existing_by_id = {trial.trial_id: trial for trial in load_experiment_trials(exp_dir)}
 
-    to_run: list[tuple[ConfigSpec, ModelEntry, Path, int]] = []
-    for entry in manifest["configs"]:
-        cfg = ConfigSpec.model_validate(entry["config"])
-        model = (
-            ModelEntry.model_validate(entry["model"])
-            if "model" in entry
-            else resolve_model(catalog, cfg.model)
+    pending_jobs: list[TrialJob] = []
+    n_trials = int(manifest["n_trials"])
+    for config_entry in manifest["configs"]:
+        harness_config = ConfigSpec.model_validate(config_entry["config"])
+        model_entry = (
+            ModelEntry.model_validate(config_entry["model"])
+            if "model" in config_entry
+            else resolve_model(catalog, harness_config.model)
         )
-        cfg_hash = compute_config_hash(cfg, model)
-        for t_str in manifest["tasks"]:
-            tdir = Path(t_str)
-            task = TaskSpec.from_dir(tdir)
-            for idx in range(1, int(manifest["n_trials"]) + 1):
-                tid = f"{cfg.name}_{cfg_hash}_{task.id}_t{idx}"
-                prev = existing.get(tid)
-                if prev is None or prev.status == "infra_error":
-                    to_run.append((cfg, model, tdir, idx))
+        config_hash = compute_config_hash(harness_config, model_entry)
+        for task_path_str in manifest["tasks"]:
+            task_dir = Path(task_path_str)
+            task = TaskSpec.from_dir(task_dir)
+            for trial_idx in range(1, n_trials + 1):
+                trial_id = _format_trial_id(harness_config.name, config_hash, task.id, trial_idx)
+                previous_trial = existing_by_id.get(trial_id)
+                if previous_trial is None or previous_trial.status == TrialStatus.INFRA_ERROR:
+                    pending_jobs.append((harness_config, model_entry, task_dir, trial_idx))
 
-    if not to_run:
+    if not pending_jobs:
         return []
 
-    retried: list[TrialResult] = []
-    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        futures = [
-            pool.submit(
-                run_single_trial,
-                experiment_id=experiment_id,
-                task_dir=tdir,
-                config=cfg,
-                model=model,
-                catalog=catalog,
-                trial_index=idx,
-                results_dir=results_dir,
-                skills_root=skills_root,
-                image=image,
-            )
-            for cfg, model, tdir, idx in to_run
-        ]
-        for fut in as_completed(futures):
-            res = fut.result()
-            retried.append(res)
-            print(
-                f"[AEP_TRIAL] {json.dumps({'experiment_id': experiment_id, 'trial_id': res.trial_id, 'status': res.status, 'passed': res.passed, 'score': res.score})}",
-                flush=True,
-            )
-
-    return retried
-
-
-def export_experiment(exp_dir: Path, fmt: str, out_path: Path) -> None:
-    """Export experiment trials to JSON or CSV."""
-    trials = load_experiment_trials(exp_dir)
-    if fmt == "json":
-        payload = [t.model_dump(mode="json") for t in trials]
-        atomic_write_text(out_path, json.dumps(payload, indent=2))
-        return
-
-    fieldnames = [
-        "trial_id",
-        "config_name",
-        "config_hash",
-        "harness",
-        "model",
-        "task_id",
-        "trial_index",
-        "status",
-        "score",
-        "passed",
-        "runtime_sec",
-        "input_tokens",
-        "output_tokens",
-        "cost_usd",
-        "steps",
-        "failure_category",
-        "error_message",
-    ]
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for t in trials:
-            row = t.model_dump(mode="json")
-            writer.writerow({k: row.get(k) for k in fieldnames})
+    return _execute_trial_jobs(
+        experiment_id=experiment_id,
+        jobs=pending_jobs,
+        catalog=catalog,
+        concurrency=concurrency,
+        results_dir=results_dir,
+        skills_root=skills_root,
+        image=image,
+    )
