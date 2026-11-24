@@ -34,7 +34,7 @@ models:
   - id: Qwen2.5-7B
     litellm: openai/Qwen/Qwen2.5-7B-Instruct-AWQ
     provider: vllm
-    api_base: https://oss-llm-test-874570031229.asia-southeast1.run.app/v1
+    api_base: url
     requires_api_key: false
     pricing:
       input_per_mtok: 0.05
