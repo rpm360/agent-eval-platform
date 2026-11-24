@@ -1,6 +1,6 @@
 # Benchmark Report: Agent Harness & Model Comparisons
 
-[← Back to Docs](./README.md) · [View Raw Results](../results/) · [View All Screenshots](../results/screenshots/)
+[← Back to Docs](./README.md) · [View Raw Results](../results/) · [View All Screenshots](./screenshots/)
 
 > **TL;DR — Two Experiments, 192 Total Runs**
 > 1. **Harness Choice Matters for Cost, Not Accuracy (Exp 1):** With `Gemini Flash Lite 3.1` and memory/skills enabled, **Hermes** and **LangGraph** both passed **24 / 24 tasks (100%)**, but LangGraph was **5.2× cheaper** and **1.7× faster** because of its lightweight prompt.
