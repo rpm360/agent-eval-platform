@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from docker.models.containers import Container
 
+from eval_runner.agents._seed_utils import (
+    read_enabled_skill_files,
+    read_seed_memory_if_enabled,
+    serialize_trial_spec,
+)
 from eval_runner.agents.base import HarnessAdapter, register_adapter
 from eval_runner.container import put_files
 from eval_runner.schemas import ConfigSpec, ModelEntry
 
+AGENT_HOME_DIR = "/agent-home"
+LANGGRAPH_ENTRYPOINT_SCRIPT = "/opt/eval_agents/container_langgraph.py"
+
 
 @register_adapter
 class LangGraphAdapter(HarnessAdapter):
+    """Container adapter for LangGraph ReAct agent (`create_react_agent` + `SqliteSaver`)."""
+
     name = "langgraph"
     default_image = "agent-eval-langgraph:latest"
 
@@ -26,34 +35,20 @@ class LangGraphAdapter(HarnessAdapter):
         model: ModelEntry,
         skills_root: Path,
     ) -> None:
-        container.exec_run(["mkdir", "-p", "/io/skills", "/agent-home"])
+        container.exec_run(["mkdir", "-p", "/io/skills", AGENT_HOME_DIR])
 
-        io_files: dict[str, bytes | str] = {}
+        seed_memory = read_seed_memory_if_enabled(task_dir, config.settings.memory)
+        if seed_memory is not None:
+            put_files(container, AGENT_HOME_DIR, {"MEMORY.md": seed_memory})
 
-        # Seed MEMORY.md only when memory is enabled (supports harness-agnostic seed/ or legacy seed_hermes/)
-        seed_mem = task_dir / "seed" / "MEMORY.md"
-        if not seed_mem.exists():
-            seed_mem = task_dir / "seed_hermes" / "MEMORY.md"
-        if config.settings.memory and seed_mem.exists():
-            put_files(container, "/agent-home", {"MEMORY.md": seed_mem.read_text(encoding="utf-8")})
-
-        # Copy enabled skills
-        for skill_id in config.settings.skills:
-            skill_file = skills_root / skill_id / "SKILL.md"
-            if skill_file.exists():
-                io_files[f"skills/{skill_id}.md"] = skill_file.read_text(encoding="utf-8")
-
-        spec = {
-            "task_id": task_dir.name,
-            "instruction": instruction,
-            "model_id": model.id,
-            "litellm_model": model.litellm,
-            "provider": model.provider,
-            "api_base": model.api_base,
-            "settings": config.settings.model_dump(mode="json"),
+        io_files: dict[str, bytes | str] = {
+            f"skills/{skill_id}.md": skill_markdown
+            for skill_id, skill_markdown in read_enabled_skill_files(
+                skills_root, config.settings.skills
+            ).items()
         }
-        io_files["spec.json"] = json.dumps(spec, indent=2)
+        io_files["spec.json"] = serialize_trial_spec(task_dir, instruction, config, model)
         put_files(container, "/io", io_files)
 
     def build_command(self, config: ConfigSpec, model: ModelEntry) -> list[str]:
-        return ["python3", "/opt/eval_agents/container_langgraph.py", "/io/spec.json"]
+        return ["python3", LANGGRAPH_ENTRYPOINT_SCRIPT, "/io/spec.json"]
