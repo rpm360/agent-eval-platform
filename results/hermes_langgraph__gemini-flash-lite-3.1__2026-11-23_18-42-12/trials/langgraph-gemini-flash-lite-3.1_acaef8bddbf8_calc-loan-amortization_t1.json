@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_calc-loan-amortization_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "calc-loan-amortization",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 6.94,
+  "input_tokens": 2677,
+  "output_tokens": 310,
+  "cost_usd": 0.001134,
+  "steps": 3,
+  "final_answer": "The fixed monthly payment for a $250,000 loan over 30 years at a 6% annual interest rate is $1,498.88. The value has been written to `/workspace/payment.txt`.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: 1498.88\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_calc-loan-amortization_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:44:34.445951+00:00"
+}

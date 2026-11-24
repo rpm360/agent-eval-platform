@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-add-type-validation_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "code-add-type-validation",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 8.5,
+  "input_tokens": 5516,
+  "output_tokens": 605,
+  "cost_usd": 0.002286,
+  "steps": 6,
+  "final_answer": "The input validation has been added to `/workspace/temperature.py`. It now raises a `TypeError` if the input is not an `int` or `float` (explicitly excluding `bool`), and a `ValueError` if the input is below absolute zero (-273.15 °C).\n\n```python\n\"\"\"Temperature conversion.\"\"\"\n\n\ndef celsius_to_fahrenheit(c):\n    if not isinstance(c, (int, float)) or isinstance(c, bool):\n        raise TypeError(\"Temperature must be an int or float.\")\n    if c < -273.15:\n        raise ValueError(\"Temperature cannot be below absolute zero (-273.15 °C).\")\n    return c * 9 / 5 + 32\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "...                                                                      [100%]\n3 passed in 0.00s\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-add-type-validation_t2.trace.jsonl",
+  "created_at": "2026-11-24T04:18:05.143949+00:00"
+}

@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_code-fix-lru-cache_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "code-fix-lru-cache",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 0.0,
+  "passed": false,
+  "runtime_sec": 21.59,
+  "input_tokens": 1492,
+  "output_tokens": 420,
+  "cost_usd": 0.000083,
+  "steps": 1,
+  "final_answer": "The `LRUCache` class uses an `OrderedDict` to maintain the order of items based on their usage. The `get` method moves the accessed item to the end of the dictionary, and the `put` method also moves the item to the end if it already exists. However, there is a bug in the `put` method where the item is being removed using `popitem(last=True)`, which removes the most recently used item instead of the least recently used item.\n\nTo fix this, we should use `popitem(last=False)` to remove the least recently used item. Let's update the `put` method accordingly.\n<tool_call>\n{\"name\": \"write_file\", \"arguments\": {\"path\": \"lru.py\", \"content\": \"\"\"Simple LRU Cache implementation with fixed eviction bug.\n\nfrom collections import OrderedDict\nfrom typing import Any\n\n\nclass LRUCache:\n    def __init__(self, capacity: int) -> None:\n        if capacity <= 0:\n            raise ValueError(\"capacity must be positive\")\n        self.capacity = capacity\n        self._store: OrderedDict[str, Any] = OrderedDict()\n\n    def get(self, key: str) -> Any:\n        if key not in self._store:\n            return None\n        self._store.move_to_end(key)\n        return self._store[key]\n\n    def put(self, key: str, value: Any) -> None:\n        if key in self._store:\n            self._store.move_to_end(key)\n        self._store[key] = value\n        if len(self._store) > self.capacity:\n            # Fixed: pops the LEAST recently used item\n            self._store.popitem(last=False)\n\"\"\"}}\n</tool_call>",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 0.0,
+    "passed": false,
+    "reasoning": "Verifier exited with code 1.",
+    "details": {
+      "exit_code": 1,
+      "output": "FF                                                                       [100%]\n=================================== FAILURES ===================================\n_____________________ test_lru_evicts_least_recently_used ______________________\n\n    def test_lru_evicts_least_recently_used():\n        cache = LRUCache(2)\n        cache.put(\"a\", 1)\n        cache.put(\"b\", 2)\n        assert cache.get(\"a\") == 1  # 'a' is now MRU, 'b' is LRU\n        cache.put(\"c\", 3)           # should evict 'b'\n>       assert cache.get(\"b\") is None\nE       AssertionError: assert 2 is None\nE        +  where 2 = get('b')\nE        +    where get = <lru.LRUCache object at 0xffff84d04650>.get\n\n/grader-tests/test_lru.py:13: AssertionError\n_________________________ test_lru_update_existing_key _________________________\n\n    def test_lru_update_existing_key():\n        cache = LRUCache(2)\n        cache.put(\"a\", 1)\n        cache.put(\"b\", 2)\n        cache.put(\"a\", 10)\n        cache.put(\"c\", 3)           # should evict 'b'\n        assert cache.get(\"a\") == 10\n>       assert cache.get(\"b\") is None\nE       AssertionError: assert 2 is None\nE        +  where 2 = get('b')\nE        +    where get = <lru.LRUCache object at 0xffff84b26910>.get\n\n/grader-tests/test_lru.py:25: AssertionError\n=========================== short test summary info ============================\nFAILED ../grader-tests/test_lru.py::test_lru_evicts_least_recently_used - Ass...\nFAILED ../grader-tests/test_lru.py::test_lru_update_existing_key - AssertionE...\n2 failed in 0.01s\n"
+    }
+  },
+  "failure_category": "wrong_output",
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_code-fix-lru-cache_t1.trace.jsonl",
+  "created_at": "2026-11-23T19:08:46.941611+00:00"
+}

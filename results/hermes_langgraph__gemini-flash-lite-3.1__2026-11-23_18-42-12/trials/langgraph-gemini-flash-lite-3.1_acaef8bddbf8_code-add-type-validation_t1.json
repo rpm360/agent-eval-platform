@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-add-type-validation_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "code-add-type-validation",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 10.55,
+  "input_tokens": 5491,
+  "output_tokens": 566,
+  "cost_usd": 0.002222,
+  "steps": 6,
+  "final_answer": "The `celsius_to_fahrenheit` function in `/workspace/temperature.py` has been updated to include the requested input validation.\n\n```python\n\"\"\"Temperature conversion.\"\"\"\n\n\ndef celsius_to_fahrenheit(c):\n    if not isinstance(c, (int, float)) or isinstance(c, bool):\n        raise TypeError(\"Input must be an int or float.\")\n    if c < -273.15:\n        raise ValueError(\"Temperature cannot be below absolute zero (-273.15 °C).\")\n    return c * 9 / 5 + 32\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "...                                                                      [100%]\n3 passed in 0.00s\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-add-type-validation_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:43:39.798286+00:00"
+}

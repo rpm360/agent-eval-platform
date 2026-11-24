@@ -1,0 +1,2 @@
+{"seq":1,"ts":"2026-11-23T22:24:30.872963+00:00","type":"session_start","payload":{"harness":"langgraph","model":"openai/Qwen/Qwen2.5-7B-Instruct-AWQ","memory":true,"skills":["release-tag-format","changelog-format","commit-message-format"]}}
+{"seq":2,"ts":"2026-11-23T22:24:30.882985+00:00","type":"memory_op","payload":{"op":"read","target":"MEMORY.md"}}

@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-api-version-header_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "mem-api-version-header",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 5.59,
+  "input_tokens": 2487,
+  "output_tokens": 100,
+  "cost_usd": 0.000772,
+  "steps": 3,
+  "final_answer": "OK.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: curl -H \"X-AEP-Api: 2026-01-preview\" https://api.internal.aep.dev/v3/orders/42\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-api-version-header_t2.trace.jsonl",
+  "created_at": "2026-11-24T04:17:44.160804+00:00"
+}

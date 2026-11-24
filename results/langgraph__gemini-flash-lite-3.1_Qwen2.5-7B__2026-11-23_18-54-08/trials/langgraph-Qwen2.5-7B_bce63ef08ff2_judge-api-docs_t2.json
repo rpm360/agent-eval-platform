@@ -1,0 +1,52 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_judge-api-docs_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "judge-api-docs",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 0.3,
+  "passed": false,
+  "runtime_sec": 29.1,
+  "input_tokens": 2588,
+  "output_tokens": 650,
+  "cost_usd": 0.000142,
+  "steps": 2,
+  "final_answer": "Great! The documentation for the `TokenBucket` rate limiter has been written to `README.md`. Here's a summary of what was documented:\n\n- **Purpose**: To implement a token bucket algorithm for rate limiting requests.\n- **Constructor Parameters**:\n  - `capacity`: The maximum number of tokens that can be held in the bucket.\n  - `fill_rate`: The rate at which tokens are added to the bucket per second.\n- **Behavior and Return Value of `allow()`**:\n  - Returns `True` if the request is allowed.\n  - Returns `False` if the request is denied.\n  - Blocks until tokens become available if the bucket is empty and no tokens can be added due to the fill rate.\n- **Errors Raised**:\n  - `ValueError`: Raised if either `capacity` or `fill_rate` is not a positive number.\n  - `RuntimeError`: Raised if the bucket cannot be filled at the specified rate due to external constraints.\n- **Usage Example**:\n  ```python\n  from ratelimit import TokenBucket\n  \n  bucket = TokenBucket(capacity=10, fill_rate=2)\n  if bucket.allow():\n      print(\"Request allowed\")\n  else:\n      print(\"Request denied\")\n  ```\n\nIf you need any further assistance or have additional questions, feel free to ask!",
+  "grade": {
+    "grader_type": "llm_judge",
+    "score": 0.3,
+    "passed": false,
+    "reasoning": "The documentation contains significant inaccuracies: it incorrectly claims allow() blocks (it does not), it invents a RuntimeError, and it fails to document the specific ValueError conditions for allow() (cost <= 0 or cost > capacity).",
+    "details": {
+      "judge_model": "gemini-flash-lite-3.1",
+      "criteria": [
+        {
+          "name": "Purpose and constructor parameters explained correctly (incl. refill_rate units).",
+          "met": true
+        },
+        {
+          "name": "allow() semantics and return value correct (deducts only on success).",
+          "met": false
+        },
+        {
+          "name": "All ValueError conditions documented correctly.",
+          "met": false
+        },
+        {
+          "name": "Usage example is consistent with the real API.",
+          "met": true
+        }
+      ],
+      "judge_input_tokens": 994,
+      "judge_output_tokens": 149
+    }
+  },
+  "failure_category": "wrong_output",
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_judge-api-docs_t2.trace.jsonl",
+  "created_at": "2026-11-23T19:08:42.625824+00:00"
+}

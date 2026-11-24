@@ -1,0 +1,149 @@
+{
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "created_at": "2026-11-23T18:42:14.294645+00:00",
+  "n_trials": 1,
+  "seed": 42,
+  "provenance": {
+    "git_commit": null,
+    "git_dirty": null,
+    "litellm_version": "1.110.2",
+    "image_digests": {
+      "agent-eval-hermes:latest": "sha256:3301e062465225bfd95dd2d246542b8490a68a172466ad109009d07b63574fb0",
+      "agent-eval-langgraph:latest": "sha256:1be5a7e9458695eeb53b6236f4623c146bff6c41f578144e0611f994c60b3a33"
+    },
+    "task_hashes": {
+      "calc-compound-interest": "f26d845b0370",
+      "calc-loan-amortization": "d13e5a6fff9d",
+      "code-add-type-validation": "2ccec432295e",
+      "code-fix-binary-search": "ad7b6c4ebd56",
+      "code-fix-lru-cache": "915a97ababdf",
+      "code-fix-multi-file": "de5299d9950f",
+      "code-implement-roman": "ce874ea51543",
+      "data-csv-join": "5e3383fc3d15",
+      "data-json-transform": "eaf34b29b086",
+      "data-log-error-counts": "df1e5d2b6a40",
+      "file-csv-aggregate": "a39d5674977e",
+      "fs-find-largest-file": "96c7e14943ba",
+      "fs-normalize-filenames": "04c0b5e03f1d",
+      "judge-api-docs": "eb3707f22de0",
+      "judge-code-review": "f0a92079ae24",
+      "judge-explain-bug": "ee2e2851c564",
+      "judge-incident-postmortem": "5a00d1b8aa33",
+      "judge-support-reply": "330fe31bf780",
+      "mem-api-version-header": "caedb0d07b7f",
+      "mem-db-table-naming": "47dffb009106",
+      "mem-deploy-convention": "9724b2352653",
+      "skill-changelog-entry": "632d42b857ce",
+      "skill-commit-message": "d70e8ab6c8c6",
+      "skill-release-tag": "9ac28b41f616"
+    }
+  },
+  "configs": [
+    {
+      "config": {
+        "name": "hermes-gemini-flash-lite-3.1",
+        "harness": "hermes",
+        "model": "gemini-flash-lite-3.1",
+        "settings": {
+          "temperature": 0.2,
+          "max_steps": 20,
+          "timeout_sec": 180,
+          "memory": true,
+          "skills": [
+            "release-tag-format",
+            "changelog-format",
+            "commit-message-format"
+          ],
+          "system_prompt_append": null,
+          "tools": null,
+          "max_output_tokens": null,
+          "max_total_tokens": null
+        }
+      },
+      "config_hash": "6d11c02e5407",
+      "model": {
+        "id": "gemini-flash-lite-3.1",
+        "litellm": "gemini/gemini-3.1-flash-lite",
+        "provider": "google",
+        "adapter": "litellm",
+        "env_key": "GEMINI_API_KEY",
+        "env_aliases": [
+          "GOOGLE_API_KEY"
+        ],
+        "api_base": null,
+        "requires_api_key": true,
+        "fallback": null,
+        "pricing": {
+          "input_per_mtok": 0.25,
+          "output_per_mtok": 1.5
+        }
+      }
+    },
+    {
+      "config": {
+        "name": "langgraph-gemini-flash-lite-3.1",
+        "harness": "langgraph",
+        "model": "gemini-flash-lite-3.1",
+        "settings": {
+          "temperature": 0.2,
+          "max_steps": 20,
+          "timeout_sec": 180,
+          "memory": true,
+          "skills": [
+            "release-tag-format",
+            "changelog-format",
+            "commit-message-format"
+          ],
+          "system_prompt_append": null,
+          "tools": null,
+          "max_output_tokens": null,
+          "max_total_tokens": null
+        }
+      },
+      "config_hash": "acaef8bddbf8",
+      "model": {
+        "id": "gemini-flash-lite-3.1",
+        "litellm": "gemini/gemini-3.1-flash-lite",
+        "provider": "google",
+        "adapter": "litellm",
+        "env_key": "GEMINI_API_KEY",
+        "env_aliases": [
+          "GOOGLE_API_KEY"
+        ],
+        "api_base": null,
+        "requires_api_key": true,
+        "fallback": null,
+        "pricing": {
+          "input_per_mtok": 0.25,
+          "output_per_mtok": 1.5
+        }
+      }
+    }
+  ],
+  "tasks": [
+    "/app/tasks/calc-compound-interest",
+    "/app/tasks/calc-loan-amortization",
+    "/app/tasks/code-add-type-validation",
+    "/app/tasks/code-fix-binary-search",
+    "/app/tasks/code-fix-lru-cache",
+    "/app/tasks/code-fix-multi-file",
+    "/app/tasks/code-implement-roman",
+    "/app/tasks/data-csv-join",
+    "/app/tasks/data-json-transform",
+    "/app/tasks/data-log-error-counts",
+    "/app/tasks/file-csv-aggregate",
+    "/app/tasks/fs-find-largest-file",
+    "/app/tasks/fs-normalize-filenames",
+    "/app/tasks/judge-api-docs",
+    "/app/tasks/judge-code-review",
+    "/app/tasks/judge-explain-bug",
+    "/app/tasks/judge-incident-postmortem",
+    "/app/tasks/judge-support-reply",
+    "/app/tasks/mem-api-version-header",
+    "/app/tasks/mem-db-table-naming",
+    "/app/tasks/mem-deploy-convention",
+    "/app/tasks/skill-changelog-entry",
+    "/app/tasks/skill-commit-message",
+    "/app/tasks/skill-release-tag"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-db-table-naming_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "mem-db-table-naming",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 4.23,
+  "input_tokens": 1113,
+  "output_tokens": 80,
+  "cost_usd": 0.000398,
+  "steps": 1,
+  "final_answer": "OK. I have written the SQL statement to `/workspace/schema.sql` following the database conventions.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: ['tbl_crm__customers'] {'id': ('INTEGER', 0), 'name': ('TEXT', 1), 'created_at': ('TIMESTAMP', 1)}\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-db-table-naming_t1.trace.jsonl",
+  "created_at": "2026-11-24T04:18:46.427493+00:00"
+}

@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_data-log-error-counts_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "data-log-error-counts",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 13.94,
+  "input_tokens": 9425,
+  "output_tokens": 483,
+  "cost_usd": 0.003081,
+  "steps": 8,
+  "final_answer": "The error counts by module have been calculated and saved to `/workspace/errors.json`.\n\nThe content of `/workspace/errors.json` is:\n```json\n{\n    \"auth\": 3,\n    \"billing\": 2,\n    \"search\": 1\n}\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: {'auth': 3, 'billing': 2, 'search': 1}\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_data-log-error-counts_t1.trace.jsonl",
+  "created_at": "2026-11-23T21:15:43.838435+00:00"
+}

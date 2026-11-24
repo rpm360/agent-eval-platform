@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_skill-release-tag_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "skill-release-tag",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 11.48,
+  "input_tokens": 2236,
+  "output_tokens": 110,
+  "cost_usd": 0.000114,
+  "steps": 2,
+  "final_answer": "The release tag has been formatted and written to `/workspace/TAG.txt` as follows:\n\n```\naep-rel-20260305-a1b2c3\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: aep-rel-20260305-a1b2c3\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_skill-release-tag_t1.trace.jsonl",
+  "created_at": "2026-11-23T19:11:56.989290+00:00"
+}

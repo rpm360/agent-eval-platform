@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_calc-compound-interest_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "calc-compound-interest",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 0.0,
+  "passed": false,
+  "runtime_sec": 10.39,
+  "input_tokens": 1267,
+  "output_tokens": 82,
+  "cost_usd": 0.000065,
+  "steps": 1,
+  "final_answer": "The final amount of an investment of $10,000 compounded annually at 5% interest for 10 years, rounded to 2 decimal places, is `16470.09`.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 0.0,
+    "passed": false,
+    "reasoning": "Verifier exited with code 1.",
+    "details": {
+      "exit_code": 1,
+      "output": "Traceback (most recent call last):\n  File \"<stdin>\", line 6, in <module>\nAssertionError: Expected 16288.95, got 16470.09\n"
+    }
+  },
+  "failure_category": "wrong_output",
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_calc-compound-interest_t2.trace.jsonl",
+  "created_at": "2026-11-23T19:11:24.086314+00:00"
+}

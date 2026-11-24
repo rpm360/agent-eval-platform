@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_skill-release-tag_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "skill-release-tag",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 5.5,
+  "input_tokens": 1774,
+  "output_tokens": 69,
+  "cost_usd": 0.000547,
+  "steps": 2,
+  "final_answer": "f",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: aep-rel-20260305-a1b2c3\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_skill-release-tag_t2.trace.jsonl",
+  "created_at": "2026-11-24T04:18:57.607900+00:00"
+}

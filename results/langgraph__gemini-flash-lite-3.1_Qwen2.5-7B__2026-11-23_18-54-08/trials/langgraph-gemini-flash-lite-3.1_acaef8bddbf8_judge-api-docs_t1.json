@@ -1,0 +1,52 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_judge-api-docs_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "judge-api-docs",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 13.87,
+  "input_tokens": 2834,
+  "output_tokens": 479,
+  "cost_usd": 0.001427,
+  "steps": 3,
+  "final_answer": "The documentation for the `TokenBucket` rate limiter has been created in `/workspace/README.md`.",
+  "grade": {
+    "grader_type": "llm_judge",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "The documentation accurately reflects the implementation details, including constructor parameters, refill rate units, allow() semantics, error conditions, and usage examples.",
+    "details": {
+      "judge_model": "gemini-flash-lite-3.1",
+      "criteria": [
+        {
+          "name": "Purpose and constructor parameters explained correctly (incl. refill_rate units).",
+          "met": true
+        },
+        {
+          "name": "allow() semantics and return value correct (deducts only on success).",
+          "met": true
+        },
+        {
+          "name": "All ValueError conditions documented correctly.",
+          "met": true
+        },
+        {
+          "name": "Usage example is consistent with the real API.",
+          "met": true
+        }
+      ],
+      "judge_input_tokens": 806,
+      "judge_output_tokens": 130
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_judge-api-docs_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:59:34.703844+00:00"
+}

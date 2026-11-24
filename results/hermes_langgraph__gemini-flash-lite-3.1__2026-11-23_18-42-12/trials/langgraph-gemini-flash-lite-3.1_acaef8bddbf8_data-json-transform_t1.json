@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_data-json-transform_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "data-json-transform",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 10.3,
+  "input_tokens": 6150,
+  "output_tokens": 398,
+  "cost_usd": 0.002135,
+  "steps": 6,
+  "final_answer": "The file `/workspace/active_users.json` has been created with the filtered and sorted list of active users:\n\n```json\n[\n  {\n    \"id\": 6,\n    \"name\": \"Fay\"\n  },\n  {\n    \"id\": 3,\n    \"name\": \"Cara\"\n  },\n  {\n    \"id\": 4,\n    \"name\": \"Dev\"\n  },\n  {\n    \"id\": 1,\n    \"name\": \"Ava\"\n  }\n]\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: [{'id': 6, 'name': 'Fay'}, {'id': 3, 'name': 'Cara'}, {'id': 4, 'name': 'Dev'}, {'id': 1, 'name': 'Ava'}]\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_data-json-transform_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:44:27.223166+00:00"
+}

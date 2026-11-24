@@ -1,0 +1,33 @@
+{
+  "trial_id": "hermes-gemini-flash-lite-3.1_6d11c02e5407_data-csv-join_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "hermes-gemini-flash-lite-3.1",
+  "config_hash": "6d11c02e5407",
+  "harness": "hermes",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "data-csv-join",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 14.48,
+  "input_tokens": 32510,
+  "output_tokens": 585,
+  "cost_usd": 0.009005,
+  "steps": 2,
+  "final_answer": "The report has been generated at `/workspace/report.csv`. It contains the total order amount per country, ignoring orders with non-existent customers, rounded to two decimal places, and sorted by total amount in descending order.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: [('FR', 200.0), ('US', 170.75), ('DE', 99.99)]\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/hermes-gemini-flash-lite-3.1_6d11c02e5407_data-csv-join_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:47:17.223521+00:00"
+}
