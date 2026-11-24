@@ -1,95 +1,83 @@
-# Experiment Report: Hermes vs. LangGraph on Gemini Flash
+# Experiment Report: Harness & Model Comparisons
 
-[← Back to Docs](./README.md) · **Raw Data:** [`results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/)
-
----
-
-## 1. Question & Setup
-
-**The question:** When we run the exact same model (`gemini/gemini-3.8-flash`) inside two different agent harnesses (**Hermes** vs. **LangGraph**) across the full 24-task suite with memory and skills turned off, how do they compare on accuracy, speed, token cost, and failure modes?
-
-- **Experiment ID:** [`hermes_langgraph__gemini-flash__2026-11-23_13-32-24`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/manifest.json)
-- **Configs compared:** `hermes-gemini-flash` (`fa4b306e355f`) vs. `langgraph-gemini-flash` (`88d521e68765`)
-- **Settings ([`configs/nomem.yaml`](../configs/nomem.yaml)):** `temperature: 0.2`, `max_steps: 20`, `timeout_sec: 180`, `memory: false`, `skills: []`
-- **Sample size:** All **24 benchmark tasks** × `N = 1` trial per task (**48 total trials**, `seed: 42`)
+[← Back to Docs](./README.md) · **Raw Results:** [`results/`](../results/) · **Screenshots:** [`results/screenshots/`](../results/screenshots/)
 
 ---
 
-## 2. Scorecard & Statistical Verdict
+## Dashboard Overview & Pre-Run Cost Estimator
 
-| Metric (48 total trials across 24 tasks) | Hermes (`hermes-gemini-flash`) | LangGraph (`langgraph-gemini-flash`) | Comparison / Notes |
+Before launching an experiment, the dashboard calculates the estimated token usage and dollar cost from `tasks × trials (N) × configs × avg_tokens_per_trial × model_price_per_token`:
+
+![Pre-run Cost Estimator & Experiment Launcher](./screenshots/01-run-and-cost-estimator-dark.png)
+
+---
+
+## Experiment 1: Harness Comparison (`Hermes` vs. `LangGraph`)
+
+**The question:** If we give the exact same model (`gemini/gemini-3.1-flash-lite`) and settings (`memory: true`, all 3 skills enabled in [`configs/default.yaml`](../configs/default.yaml)) to **Hermes** and **LangGraph** across all **24 tasks** (`N = 1`, 48 trials), does the harness change accuracy, speed, or cost?
+
+- **Experiment folder:** [`results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/`](../results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/manifest.json)
+
+![Experiment 1 — Hermes vs. LangGraph Scorecard](./screenshots/02-exp1-hermes-vs-langgraph-compare.png)
+
+| Metric (All 24 tasks, 48 trials) | Hermes (`6d11c02e5407`) | LangGraph (`acaef8bddbf8`) | Comparison / Verdict |
 | :--- | :---: | :---: | :--- |
-| **Completed / Infra errors** | 20 completed / 4 `infra_error` | 24 completed / 0 `infra_error` | **20 shared completed tasks** |
-| **Unadjusted pass rate** | 60.0% (12 / 20) | 50.0% (12 / 24) | Skewed by 4 quota errors at end of run |
-| **Paired pass rate (20 shared tasks)** | **60.0%** (12 / 20) | **60.0%** (12 / 20) | **0.0% difference** (`[0.0%, 0.0%]` 95% CI) |
-| **McNemar pass/fail p-value** | — | — | `p = 1.00` → **`NOISE` (exact tie)** |
-| **Median runtime (`p50`)** | 57.8s | **35.6s** | LangGraph **38% faster** at median |
-| **Avg tokens per completed trial** | 50,519 | **21,683** | LangGraph **2.3× fewer tokens** |
-| **Cost per passing task** | \$0.0688 | **\$0.0409** | LangGraph **41% cheaper per pass** |
-| **Total experiment cost** | \$0.8257 | **\$0.4911** | Saved \$0.3346 |
+| **Pass rate** | **100.0%** (24 / 24) | **100.0%** (24 / 24) | **Tie (`verdict: NOISE`, `p = 1.00`)** |
+| **Mean score** | **1.000** | **0.996** | `Delta = -0.0042` (`95% CI: [-0.0125, 0.0]`) |
+| **Median / p95 runtime** | 13.9s / 18.0s | **8.0s / 15.5s** | LangGraph **1.7× faster** at median |
+| **Avg tokens per trial** | 39,349 | **5,637** | LangGraph **7.0× fewer tokens** |
+| **Total experiment cost** | \$0.2475 | **\$0.0476** | LangGraph **5.2× cheaper** (saved \$0.20) |
 
-### Breakdown by Task Bucket (All 24 Tasks)
+- **Takeaway:** With `memory: true` and `skills` enabled, both harnesses passed **24 / 24 tasks** (including all 3 memory tasks, 3 skill tasks, and 5 AI-judged tasks). However, LangGraph cost **5.2× less** because Hermes loads its full default system prompt and built-in tool schemas (~15k tokens) on every step.
 
-| Task Bucket | Hermes Passed | LangGraph Passed | What Happened |
+---
+
+## Experiment 2: Model Comparison (`Gemini Flash Lite 3.1` vs. Self-Hosted `vLLM Qwen2.5-7B`)
+
+**The question:** Using the leaner **LangGraph** harness across all **24 tasks** with **`N = 3` repeated trials per task** (**144 total trials**), how does a frontier cloud API (`gemini-flash-lite-3.1`) compare against our self-hosted open-weight vLLM model (`Qwen2.5-7B-Instruct-AWQ` on Cloud Run L4 GPU)?
+
+- **Experiment folder:** [`results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/`](../results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/manifest.json)
+
+![Experiment 2 — Gemini Flash Lite vs. Qwen2.5-7B Comparison](./screenshots/03-exp2-gemini-vs-qwen-compare.png)
+
+| Metric (24 tasks × `N = 3` = 144 trials) | `langgraph-Qwen2.5-7B` | `langgraph-gemini-flash-lite-3.1` | Comparison / Verdict |
 | :--- | :---: | :---: | :--- |
-| **Math, Data & Files** (8 tasks) | **8 / 8 (100%)** | **8 / 8 (100%)** | Both solved every CSV, JSON, log, and math task cleanly. |
-| **Coding & Bug Fixes** (5 tasks) | **4 / 5 (80%)** | **4 / 5 (80%)** | Both fixed 4 bugs (`lru-cache`, `binary-search`, `type-validation`, `multi-file`) and timed out on `code-implement-roman`. |
-| **Memory Recall** (3 tasks) | **0 / 3 (0%)** | **0 / 3 (0%)** | Expected baseline failure: `memory: false` withheld `MEMORY.md`, proving those tasks cannot be guessed without memory. |
-| **Procedural Skills** (3 tasks) | **0 / 3 (0%)** | **0 / 3 (0%)** | Expected baseline failure: `skills: []` withheld `SKILL.md`, proving house formats cannot be guessed without the skill. |
-| **Writing & Review** (5 tasks) | **0 / 1** *(+4 `infra_error`)* | **0 / 5 (0%)** | Hit `judge-support-reply` missing-memory failure, 1 timeout (`judge-code-review`), and Gemini API credit depletion (`HTTP 402 RESOURCE_EXHAUSTED`) on the last 4 tasks. |
+| **Completed / Infra errors** | 72 completed / 0 `infra_error` | 71 completed / **1 `infra_error`** | `infra_error` isolated from score |
+| **Pass rate** | 23.6% (17 / 72) | **100.0%** (71 / 71) | **+76.4% pass rate gap** |
+| **Mean score** | 0.254 | **0.999** | **`Delta = +0.7444`** (`95% CI: [+0.6042, +0.8722]`) |
+| **Statistical verdict** | — | **Winner (`p = 0.0`)** | **`langgraph-gemini-flash-lite-3.1 BETTER`** |
+| **Median runtime (`p50`)** | 24.4s | **11.9s** | Gemini **2.1× faster** |
+| **Total experiment cost** | **\$0.0088** | \$0.1367 | Self-hosted vLLM is near-zero token cost |
+
+### Failure Breakdown Across 72 Open-Weight Trials
+
+![Experiment 2 — Failure Breakdown](./screenshots/04-exp2-failure-breakdown.png)
+
+- **`langgraph-Qwen2.5-7B` (55 failed out of 72):** Grouped automatically into **7 failure categories**—`timeout` (23), `wrong_output` (21), `gave_up_early` (5), `hallucinated_tool_args` (2), `wrong_tool` (2), `loop` (1), and `grader_borderline` (1).
+- **`langgraph-gemini-flash-lite-3.1` (1 failed out of 72):** Only 1 transient API error (`infra_error: 1`), which was excluded from the mean score so it did not penalize the 71/71 passing trials.
 
 ---
 
-## 3. What the Traces Reveal (4 Inspected Trajectories)
+## 3. What the Traces Reveal (3 Inspected Trajectories)
 
-### Trajectory 1: Short tasks favor LangGraph's lean prompt (`calc-compound-interest`)
-- **Traces:** [`hermes...calc-compound-interest_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/hermes-gemini-flash_fa4b306e355f_calc-compound-interest_t1.trace.jsonl) vs. [`langgraph...calc-compound-interest_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/langgraph-gemini-flash_88d521e68765_calc-compound-interest_t1.trace.jsonl)
-- **What happened:** Both harnesses ran a quick Python one-liner, wrote `16288.95` to `/workspace/answer.txt`, and passed in ~24–25 seconds.
-- **Why cost differed by 5×:** Hermes finished in just 2 steps but sent **28,991 input tokens** (\$0.0235) because its full default system prompt and built-in tool schemas are loaded on every turn. LangGraph's minimal 4-tool ReAct loop used only **5,249 input tokens** (\$0.0076) for the exact same result.
+![Trajectory Inspector — Mental Math vs. Tool Use](./screenshots/05-trajectory-inspector.png)
 
-### Trajectory 2: Focused patching vs. over-testing on multi-file code (`code-fix-multi-file`)
-- **Traces:** [`hermes...code-fix-multi-file_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/hermes-gemini-flash_fa4b306e355f_code-fix-multi-file_t1.trace.jsonl) vs. [`langgraph...code-fix-multi-file_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/langgraph-gemini-flash_88d521e68765_code-fix-multi-file_t1.trace.jsonl)
-- **What happened:** Both agents found both bugs in `/workspace/shop/` (`cart.py` ignored item quantity `qty`, and `pricing.py` returned the discount amount instead of the discounted price) and passed the hidden `pytest` suite.
-- **How their behavior diverged:** Hermes used its structured `patch` tool, ran a quick verification script, cleaned up `__pycache__`, and finished in **15 steps (104.5s)**. LangGraph spent 6 extra turns exploring floating-point rounding edge cases (`0.045000000000000005`) before patching the files, hitting the **20-step ceiling (150.5s)** right after writing the passing fix.
-
-### Trajectory 3: "Search spirals" when memory or skills are disabled (`mem-deploy-convention` & `judge-support-reply`)
-- **Traces:** [`langgraph...mem-deploy-convention_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/langgraph-gemini-flash_88d521e68765_mem-deploy-convention_t1.trace.jsonl) & [`hermes...judge-support-reply_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/hermes-gemini-flash_fa4b306e355f_judge-support-reply_t1.trace.jsonl)
-- **What happened:** When a task asked for a house rule from memory (`mem-deploy-convention` or `judge-support-reply`'s refund policy) under `memory: false`, neither agent guessed early:
-  - **LangGraph** ran 20 bash searches (`find / -name "*deploy*"`, `ls -la /agent-home`, `grep -rnwi ...`) until it hit `step_exhaustion` (`"Sorry, need more steps to process this request."`).
-  - **Hermes** searched `/root/.hermes/memories`, queried its FTS5 `session_search` database (`query="refund policy"`), and even inspected `/root/.hermes/state.db` via SQLite until it hit the iteration cap and drafted a generic 30-day refund reply in chat without writing `/workspace/REPLY.md`.
-
-### Trajectory 4: Why paired stats & `infra_error` separation matter (`judge-api-docs`, `judge-explain-bug`, `judge-incident-postmortem`)
-- **Traces:** [`hermes...judge-api-docs_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/hermes-gemini-flash_fa4b306e355f_judge-api-docs_t1.trace.jsonl) vs. [`langgraph...judge-api-docs_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/trials/langgraph-gemini-flash_88d521e68765_judge-api-docs_t1.trace.jsonl)
-- **What happened:** Near the end of the 48-trial run (`15:06 UTC`), the Gemini API project ran out of prepaid credits (`litellm.PaymentRequiredError: code 402 RESOURCE_EXHAUSTED`).
-- **How the platform protected the comparison:** Hermes caught the empty upstream stream as `status: infra_error` (`score: null`), automatically excluding those 4 tasks from the paired delta and triggering the dashboard warning: *"High infra_error rate on hermes-gemini-flash (4/24 > 10%): run `eval-retry` before trusting results."* Comparing all 20 shared tasks kept the headline delta honest (`60.0% vs. 60.0%`) instead of penalizing LangGraph (`50.0%` unadjusted) for failing when credits ran out.
+1. **Why `Qwen2.5-7B` failed `calc-compound-interest` (`wrong_output`):**
+   In [`langgraph-Qwen2.5-7B_bce63ef08ff2_calc-compound-interest_t1.trace.jsonl`](../results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_calc-compound-interest_t1.trace.jsonl), instead of calling `run_bash` with `python3` to compute `10000 * (1.05 ** 10)`, the 7B model guessed the math in its head and wrote `16470.09` directly via `write_file` (the continuous-compounding value instead of annual `16288.95`). Both Gemini configs ran Python first and wrote `16288.95`.
+2. **How `Hermes` vs. `LangGraph` solved `mem-deploy-convention` with 14× different token usage:**
+   In [`hermes...mem-deploy-convention_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/hermes-gemini-flash-lite-3.1_6d11c02e5407_mem-deploy-convention_t1.trace.jsonl) vs. [`langgraph...mem-deploy-convention_t1.trace.jsonl`](../results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-deploy-convention_t1.trace.jsonl), both recalled `<env>-<region>-<service>-v2` from `MEMORY.md` and wrote `prod-eu-west-payments-v2`. LangGraph called `read_memory` → `write_file` in **2,148 input tokens**, whereas Hermes loaded its built-in skill/memory tool schemas and consumed **31,205 input tokens**.
+3. **Why `Qwen2.5-7B` hit 23 timeouts and tool-arg hallucinations:**
+   On multi-step coding and bash tasks, the 7B quantized model frequently passed malformed JSON arguments (`hallucinated_tool_args: 2`) or hung on unclosed shell commands until the container watchdog killed the trial (`timeout: 23`).
 
 ---
 
-## 4. Cost Estimate Formula, Actual Spend & Cost Reduction
-
-The dashboard estimates experiment cost before launch using the model rates in [`models.yaml`](../models.yaml) and empirical token usage per harness:
+## 4. Cost Formula, Actual Spend & How to Reduce Cost
 
 ```text
-Estimated Cost = tasks × trials (N) × configs × avg_tokens_per_trial × price_per_token
+Estimated Cost = tasks × trials (N) × configs × avg_tokens_per_trial × model_price_per_token
 ```
 
-| Config (`gemini-flash`: \$0.75/1M in, \$3.75/1M out) | Formula (`tasks × trials × avg tokens`) | Pre-Run Estimate (24 tasks) | Actual Spend ([`manifest.json`](../results/hermes_langgraph__gemini-flash__2026-11-23_13-32-24/manifest.json)) |
-| :--- | :--- | :---: | :---: |
-| **`hermes-gemini-flash`** | `24 × 1 × ~50.5k tokens` (~49.3k in + 1.2k out) | ~\$0.99 | **\$0.8257** *(20 completed + 4 infra errors)* |
-| **`langgraph-gemini-flash`** | `24 × 1 × ~21.7k tokens` (~19.9k in + 1.8k out) | ~\$0.52 | **\$0.4911** *(24 completed)* |
-| **Total Experiment (2 configs, 48 trials)** | `24 tasks × 1 trial × 2 configs` | **~\$1.51** | **\$1.3168** (\$0.055 per passing trial) |
-
-### How We Reduce Cost (Caching, Early Stopping, Sampling)
-
-1. **Prompt Caching (saves ~50–70% on Hermes):** Hermes reloads its large built-in system prompt and tool schemas (~14k tokens) on every step. Turning on Gemini/Anthropic prefix caching avoids re-billing those static system tokens across a 10–15 step trajectory.
-2. **Early Stopping (saves ~80% of wasted tokens on failing tasks):** When `memory: false` or `skills: []`, agents burned 66k–95k tokens running `find /` and `grep` across 20 steps (`mem-deploy-convention`, `skill-changelog-entry`). Failing fast when `/agent-home/MEMORY.md` or `/io/skills/` is empty—or capping consecutive identical search commands—eliminates these 20-step search spirals.
-3. **Stratified Sampling & Staged `N` (saves ~75% during iteration):** Instead of running `24 tasks × 3 trials` (\$4.50) on every commit, use a 2-stage gate: run **1 task per bucket at `N = 1`** (5 tasks ≈ \$0.30) first, and only expand to all 24 tasks or `N = 3` on buckets that show non-zero variance.
-
----
-
-## 5. Conclusions & Recommendations
-
-1. **Same model = same task accuracy (12 / 20 vs. 12 / 20 on shared tasks).** Across every task where the API had quota, Hermes and LangGraph passed and failed the exact same tasks (`verdict: NOISE`).
-2. **LangGraph is 41% cheaper per pass and 38% faster at median.** Because LangGraph exposes only 4–6 benchmark tools instead of Hermes's full workspace/session/skill toolset, it uses less than half the tokens overall.
-3. **Paired comparison prevents billing/quota glitches from skewing the winner.** Without task-level pairing and `infra_error` detection, a naive average would have reported `60.0% vs. 50.0%` in favor of Hermes solely because Gemini credits ran out during the final 4 judge tasks.
-4. **Fail fast when required memory or skills are missing.** When `MEMORY.md` or `SKILL.md` is disabled, both agents spend 20 steps or 120–180 seconds searching the entire container filesystem (`find /`, `grep`). Adding a system prompt rule to stop immediately if `/agent-home/MEMORY.md` or `/io/skills/` is empty will cut failed-trial time and token waste by >80%.
+| Experiment | Formula (`tasks × N × configs`) | Actual Spend | Cost Reduction Strategies (60–85% savings) |
+| :--- | :--- | :---: | :--- |
+| **Exp 1 (`Hermes` vs. `LangGraph`)** | `24 × 1 × 2 = 48 trials` | **\$0.2951** (\$0.2475 + \$0.0476) | **1. Prompt caching:** Cuts Hermes's ~15k/step repeated system prefix cost by 75–90%. |
+| **Exp 2 (`Gemini` vs. `Qwen2.5-7B`)** | `24 × 3 × 2 = 144 trials` | **\$0.1455** (\$0.1367 + \$0.0088) | **2. Early stopping & tiered `N`:** Stop on repeated bash errors/loops, and run a 5-task `N = 1` smoke gate (~\$0.05) before full `N = 3` sweeps. |
