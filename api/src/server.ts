@@ -13,6 +13,35 @@ const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = path.resolve(__dirname, "..", "..");
 
+const BRIDGE_MAX_BUFFER_BYTES = 20 * 1024 * 1024;
+const SSE_DEBOUNCE_MS = 150;
+const SSE_POLL_INTERVAL_MS = 1200;
+const SSE_KEEPALIVE_INTERVAL_MS = 15000;
+const SLUG_DISPLAY_LIMIT = 2;
+const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_JUDGE_MODEL = "gemini-flash";
+const DEFAULT_CALIBRATION_REPEATS = 3;
+
+const EXPORT_CSV_COLUMNS = [
+  "trial_id",
+  "config_name",
+  "config_hash",
+  "harness",
+  "model",
+  "task_id",
+  "trial_index",
+  "status",
+  "score",
+  "passed",
+  "runtime_sec",
+  "input_tokens",
+  "output_tokens",
+  "cost_usd",
+  "steps",
+  "failure_category",
+  "error_message",
+] as const;
+
 function slugPart(val: string): string {
   return val
     .trim()
@@ -20,13 +49,19 @@ function slugPart(val: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function formatSlugItems(items: string[], maxItems = SLUG_DISPLAY_LIMIT): string {
+  if (items.length === 0) return "";
+  if (items.length <= maxItems) return items.join("_");
+  return `${items.slice(0, maxItems).join("_")}_+${items.length - maxItems}`;
+}
+
 function makeExpId(harnesses: string[] = [], models: string[] = []): string {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
 
-  const hList = Array.from(new Set(harnesses.map(slugPart).filter(Boolean)));
-  const mList = Array.from(
+  const harnessSlugs = Array.from(new Set(harnesses.map(slugPart).filter(Boolean)));
+  const modelSlugs = Array.from(
     new Set(
       models
         .map((m) => slugPart(m.includes("/") ? m.split("/").pop() || m : m))
@@ -34,68 +69,101 @@ function makeExpId(harnesses: string[] = [], models: string[] = []): string {
     )
   );
 
-  const fmtList = (items: string[], maxItems = 2) => {
-    if (items.length === 0) return "";
-    if (items.length <= maxItems) return items.join("_");
-    return `${items.slice(0, maxItems).join("_")}_+${items.length - maxItems}`;
-  };
-
-  const parts = [fmtList(hList), fmtList(mList), ts].filter(Boolean);
+  const parts = [formatSlugItems(harnessSlugs), formatSlugItems(modelSlugs), ts].filter(Boolean);
   return parts.length > 1 ? parts.join("__") : `exp_${ts}`;
+}
+
+async function summarizeExperimentDirectory(resultsDir: string, experimentId: string) {
+  const expDir = path.join(resultsDir, experimentId);
+  let createdAt: string | null = null;
+  let configs: string[] = [];
+  let expectedTrials: number | null = null;
+
+  try {
+    const manifest = JSON.parse(await fs.readFile(path.join(expDir, "manifest.json"), "utf-8"));
+    createdAt = manifest.created_at ?? null;
+    configs = (manifest.configs ?? [])
+      .map((entry: { config?: { name?: string } }) => entry.config?.name)
+      .filter(Boolean);
+    const nConfigs = Array.isArray(manifest.configs) ? manifest.configs.length : 0;
+    const nTasks = Array.isArray(manifest.tasks) ? manifest.tasks.length : 0;
+    const nTrials = Number(manifest.n_trials ?? 0);
+    if (nConfigs > 0 && nTasks > 0 && nTrials > 0) {
+      expectedTrials = nConfigs * nTasks * nTrials;
+    }
+  } catch {
+    // Manifest may not be written yet during job startup
+  }
+
+  let trialCount = 0;
+  let passedCount = 0;
+  let infraErrors = 0;
+  try {
+    const trialsDir = path.join(expDir, "trials");
+    const jsonFiles = (await fs.readdir(trialsDir)).filter((name) => name.endsWith(".json"));
+    trialCount = jsonFiles.length;
+    for (const fileName of jsonFiles) {
+      const trial = JSON.parse(await fs.readFile(path.join(trialsDir, fileName), "utf-8"));
+      if (trial.status === "infra_error") infraErrors++;
+      else if (trial.passed) passedCount++;
+    }
+  } catch {
+    // trials/ directory may not exist yet
+  }
+
+  return {
+    id: experimentId,
+    createdAt,
+    configs,
+    expectedTrials,
+    trialCount,
+    passedCount,
+    infraErrors,
+  };
 }
 
 async function listExperiments(rootDir: string) {
   const resultsDir = path.join(rootDir, "results");
-  let entries: string[] = [];
+  let experimentIds: string[] = [];
   try {
     const dirEntries = await fs.readdir(resultsDir, { withFileTypes: true });
-    entries = dirEntries
-      .filter((d) => d.isDirectory() && d.name !== "calibration")
-      .map((d) => d.name)
+    experimentIds = dirEntries
+      .filter((entry) => entry.isDirectory() && entry.name !== "calibration")
+      .map((entry) => entry.name)
       .sort()
       .reverse();
   } catch {
     return [];
   }
 
+  return Promise.all(experimentIds.map((id) => summarizeExperimentDirectory(resultsDir, id)));
+}
+
+async function readSortedExperimentTrials(
+  rootDir: string,
+  experimentId: string
+): Promise<Record<string, unknown>[]> {
+  const trialsDir = path.join(rootDir, "results", experimentId, "trials");
+  const jsonFiles = (await fs.readdir(trialsDir)).filter((name) => name.endsWith(".json")).sort();
   return Promise.all(
-    entries.map(async (id) => {
-      const expDir = path.join(resultsDir, id);
-      let createdAt: string | null = null;
-      let configs: string[] = [];
-      let expectedTrials: number | null = null;
-      try {
-        const manifest = JSON.parse(await fs.readFile(path.join(expDir, "manifest.json"), "utf-8"));
-        createdAt = manifest.created_at ?? null;
-        configs = (manifest.configs ?? [])
-          .map((c: { config?: { name?: string } }) => c.config?.name)
-          .filter(Boolean);
-        const nConfigs = Array.isArray(manifest.configs) ? manifest.configs.length : 0;
-        const nTasks = Array.isArray(manifest.tasks) ? manifest.tasks.length : 0;
-        const nTrials = Number(manifest.n_trials ?? 0);
-        if (nConfigs > 0 && nTasks > 0 && nTrials > 0) {
-          expectedTrials = nConfigs * nTasks * nTrials;
-        }
-      } catch {
-        // ignore missing manifest
-      }
-      let trialCount = 0;
-      let passedCount = 0;
-      let infraErrors = 0;
-      try {
-        const files = (await fs.readdir(path.join(expDir, "trials"))).filter((f) => f.endsWith(".json"));
-        trialCount = files.length;
-        for (const f of files) {
-          const t = JSON.parse(await fs.readFile(path.join(expDir, "trials", f), "utf-8"));
-          if (t.status === "infra_error") infraErrors++;
-          else if (t.passed) passedCount++;
-        }
-      } catch {
-        // ignore
-      }
-      return { id, createdAt, configs, expectedTrials, trialCount, passedCount, infraErrors };
-    })
+    jsonFiles.map(async (fileName) =>
+      JSON.parse(await fs.readFile(path.join(trialsDir, fileName), "utf-8"))
+    )
   );
+}
+
+function formatTrialsAsCsv(trials: Record<string, unknown>[]): string {
+  const escapeCsvCell = (value: unknown): string => {
+    const str = value === null || value === undefined ? "" : String(value);
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  const rows = [
+    EXPORT_CSV_COLUMNS.join(","),
+    ...trials.map((trial) =>
+      EXPORT_CSV_COLUMNS.map((col) => escapeCsvCell(trial[col])).join(",")
+    ),
+  ];
+  return `${rows.join("\n")}\n`;
 }
 
 function resolvePythonRunner(): { bin: string; prefix: string[] } {
@@ -113,21 +181,36 @@ async function runBridge(root: string, args: string[]): Promise<unknown> {
   const { stdout } = await execFileAsync(
     bin,
     [...prefix, "-m", "eval_runner.api_bridge", ...args, "--root", root],
-    { cwd: root, maxBuffer: 20 * 1024 * 1024 }
+    { cwd: root, maxBuffer: BRIDGE_MAX_BUFFER_BYTES }
   );
   return JSON.parse(stdout);
 }
 
-export async function buildServer(opts: { rootDir?: string; serveStatic?: boolean } = {}): Promise<FastifyInstance> {
+async function computeTrialsDirectorySignature(trialsDir: string): Promise<string> {
+  try {
+    const jsonFiles = (await fs.readdir(trialsDir)).filter((name) => name.endsWith(".json")).sort();
+    const fileStats = await Promise.all(
+      jsonFiles.map(async (fileName) => {
+        const stat = await fs.stat(path.join(trialsDir, fileName));
+        return `${fileName}:${stat.mtimeMs}:${stat.size}`;
+      })
+    );
+    return fileStats.join("|");
+  } catch {
+    return "";
+  }
+}
+
+export async function buildServer(
+  opts: { rootDir?: string; serveStatic?: boolean } = {}
+): Promise<FastifyInstance> {
   const rootDir = opts.rootDir || process.env.EVAL_ROOT_DIR || DEFAULT_ROOT;
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
 
   app.get("/api/health", async () => ({ status: "ok", rootDir }));
 
-  app.get("/api/catalog", async () => {
-    return runBridge(rootDir, ["catalog"]);
-  });
+  app.get("/api/catalog", async () => runBridge(rootDir, ["catalog"]));
 
   app.get("/api/experiments", async () => {
     const experiments = await listExperiments(rootDir);
@@ -161,23 +244,11 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
 
         if (watchedExpId) {
           const trialsDir = path.join(rootDir, "results", watchedExpId, "trials");
-          let trialsSig = "";
-          try {
-            const files = (await fs.readdir(trialsDir)).filter((f) => f.endsWith(".json")).sort();
-            const stats = await Promise.all(
-              files.map(async (f) => {
-                const st = await fs.stat(path.join(trialsDir, f));
-                return `${f}:${st.mtimeMs}:${st.size}`;
-              })
-            );
-            trialsSig = stats.join("|");
-          } catch {
-            trialsSig = "";
-          }
+          const trialsSig = await computeTrialsDirectorySignature(trialsDir);
           if (trialsSig !== lastTrialsSig) {
-            const hadPrev = lastTrialsSig !== "";
+            const hadPreviousSnapshot = lastTrialsSig !== "";
             lastTrialsSig = trialsSig;
-            if (hadPrev || trialsSig !== "") {
+            if (hadPreviousSnapshot || trialsSig !== "") {
               reply.raw.write(
                 `event: trial_update\ndata: ${JSON.stringify({ expId: watchedExpId, ts: Date.now() })}\n\n`
               );
@@ -185,7 +256,7 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
           }
         }
       } catch {
-        // ignore transient fs read races during atomic rename
+        // Ignore transient fs read races during atomic rename
       }
     };
 
@@ -203,7 +274,7 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
         void emitState();
-      }, 150);
+      }, SSE_DEBOUNCE_MS);
     };
 
     const watchers: FSWatcher[] = [];
@@ -222,21 +293,21 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
       }
     }
 
-    const pollInterval = setInterval(() => void emitState(), 1200);
+    const pollInterval = setInterval(() => void emitState(), SSE_POLL_INTERVAL_MS);
     const keepaliveInterval = setInterval(() => {
       if (!closed) reply.raw.write(": keepalive\n\n");
-    }, 15000);
+    }, SSE_KEEPALIVE_INTERVAL_MS);
 
     req.raw.on("close", () => {
       closed = true;
       if (debounceTimer) clearTimeout(debounceTimer);
       clearInterval(pollInterval);
       clearInterval(keepaliveInterval);
-      for (const w of watchers) {
+      for (const watcher of watchers) {
         try {
-          w.close();
+          watcher.close();
         } catch {
-          // ignore
+          // Ignore watcher close errors
         }
       }
     });
@@ -262,12 +333,8 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
   );
 
   app.get<{ Params: { id: string } }>("/api/experiments/:id/trials", async (req, reply) => {
-    const trialsDir = path.join(rootDir, "results", req.params.id, "trials");
     try {
-      const files = (await fs.readdir(trialsDir)).filter((f) => f.endsWith(".json")).sort();
-      const trials = await Promise.all(
-        files.map(async (f) => JSON.parse(await fs.readFile(path.join(trialsDir, f), "utf-8")))
-      );
+      const trials = await readSortedExperimentTrials(rootDir, req.params.id);
       return { trials };
     } catch {
       return reply.code(404).send({ error: `Trials not found for '${req.params.id}'` });
@@ -284,11 +351,11 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
         const tracePath = path.join(trialsDir, `${req.params.trialId}.trace.jsonl`);
         let events: unknown[] = [];
         try {
-          const raw = await fs.readFile(tracePath, "utf-8");
-          events = raw
+          const rawTrace = await fs.readFile(tracePath, "utf-8");
+          events = rawTrace
             .split(/\r?\n/)
-            .filter((l) => l.trim())
-            .map((l) => JSON.parse(l));
+            .filter((line) => line.trim())
+            .map((line) => JSON.parse(line));
         } catch {
           events = [];
         }
@@ -303,13 +370,9 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
     "/api/experiments/:id/export",
     async (req, reply) => {
       const fmt = req.query.format === "csv" ? "csv" : "json";
-      const trialsDir = path.join(rootDir, "results", req.params.id, "trials");
-      let trials: Record<string, unknown>[] = [];
+      let trials: Record<string, unknown>[];
       try {
-        const files = (await fs.readdir(trialsDir)).filter((f) => f.endsWith(".json")).sort();
-        trials = await Promise.all(
-          files.map(async (f) => JSON.parse(await fs.readFile(path.join(trialsDir, f), "utf-8")))
-        );
+        trials = await readSortedExperimentTrials(rootDir, req.params.id);
       } catch {
         return reply.code(404).send({ error: `Experiment '${req.params.id}' not found` });
       }
@@ -320,45 +383,23 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
         return JSON.stringify(trials, null, 2);
       }
 
-      const cols = [
-        "trial_id",
-        "config_name",
-        "config_hash",
-        "harness",
-        "model",
-        "task_id",
-        "trial_index",
-        "status",
-        "score",
-        "passed",
-        "runtime_sec",
-        "input_tokens",
-        "output_tokens",
-        "cost_usd",
-        "steps",
-        "failure_category",
-        "error_message",
-      ];
-      const escapeCsv = (val: unknown) => {
-        const s = val === null || val === undefined ? "" : String(val);
-        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-      };
-      const lines = [
-        cols.join(","),
-        ...trials.map((t) => cols.map((c) => escapeCsv(t[c])).join(",")),
-      ];
       reply.header("Content-Disposition", `attachment; filename="${req.params.id}.csv"`);
       reply.type("text/csv");
-      return lines.join("\n") + "\n";
+      return formatTrialsAsCsv(trials);
     }
   );
 
   app.get("/api/calibration", async () => {
     const calDir = path.join(rootDir, "results", "calibration");
     try {
-      const files = (await fs.readdir(calDir)).filter((f) => f.endsWith(".json")).sort().reverse();
+      const reportFiles = (await fs.readdir(calDir))
+        .filter((name) => name.endsWith(".json"))
+        .sort()
+        .reverse();
       const reports = await Promise.all(
-        files.map(async (f) => JSON.parse(await fs.readFile(path.join(calDir, f), "utf-8")))
+        reportFiles.map(async (fileName) =>
+          JSON.parse(await fs.readFile(path.join(calDir, fileName), "utf-8"))
+        )
       );
       return { reports };
     } catch {
@@ -385,19 +426,19 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
     const expId = body.expId?.trim() || makeExpId(body.harnesses, body.models);
     const { bin, prefix } = resolvePythonRunner();
     const cliArgs = [...prefix, "-m", "eval_runner.cli_exec", "run"];
-    for (const h of body.harnesses) cliArgs.push("-H", h);
-    for (const m of body.models) cliArgs.push("-m", m);
+    for (const harness of body.harnesses) cliArgs.push("-H", harness);
+    for (const model of body.models) cliArgs.push("-m", model);
     if (body.settingsPath) cliArgs.push("--settings", body.settingsPath);
     const taskTargets =
       Array.isArray(body.tasksPaths) && body.tasksPaths.length > 0
         ? body.tasksPaths
         : [body.tasksPath || "tasks"];
-    for (const tp of taskTargets) cliArgs.push("-t", tp);
+    for (const taskPath of taskTargets) cliArgs.push("-t", taskPath);
     cliArgs.push(
       "-n",
       String(body.trials || 1),
       "-j",
-      String(body.concurrency || 2),
+      String(body.concurrency || DEFAULT_CONCURRENCY),
       "--exp-id",
       expId
     );
@@ -408,18 +449,32 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
 
   app.post<{ Params: { id: string } }>("/api/experiments/:id/retry", async (req) => {
     const { bin, prefix } = resolvePythonRunner();
-    const job = startJob("retry", bin, [...prefix, "-m", "eval_runner.cli_exec", "retry", "--exp", req.params.id], rootDir);
+    const job = startJob(
+      "retry",
+      bin,
+      [...prefix, "-m", "eval_runner.cli_exec", "retry", "--exp", req.params.id],
+      rootDir
+    );
     return { jobId: job.id, status: job.status };
   });
 
   app.post<{ Body: { judge?: string; repeats?: number } }>("/api/calibration/run", async (req) => {
     const { bin, prefix } = resolvePythonRunner();
-    const judge = req.body?.judge || "gemini-flash";
-    const repeats = req.body?.repeats || 3;
+    const judge = req.body?.judge || DEFAULT_JUDGE_MODEL;
+    const repeats = req.body?.repeats || DEFAULT_CALIBRATION_REPEATS;
     const job = startJob(
       "calibrate",
       bin,
-      [...prefix, "-m", "eval_runner.cli_exec", "calibrate", "--judge", judge, "--repeats", String(repeats)],
+      [
+        ...prefix,
+        "-m",
+        "eval_runner.cli_exec",
+        "calibrate",
+        "--judge",
+        judge,
+        "--repeats",
+        String(repeats),
+      ],
       rootDir
     );
     return { jobId: job.id, status: job.status };
@@ -448,12 +503,15 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
       reply.raw.write(`event: log\ndata: ${JSON.stringify({ line })}\n\n`);
     }
     if (job.status !== "running") {
-      reply.raw.write(`event: done\ndata: ${JSON.stringify({ status: job.status, exitCode: job.exitCode })}\n\n`);
+      reply.raw.write(
+        `event: done\ndata: ${JSON.stringify({ status: job.status, exitCode: job.exitCode })}\n\n`
+      );
       reply.raw.end();
       return reply;
     }
 
-    const onLog = (line: string) => reply.raw.write(`event: log\ndata: ${JSON.stringify({ line })}\n\n`);
+    const onLog = (line: string) =>
+      reply.raw.write(`event: log\ndata: ${JSON.stringify({ line })}\n\n`);
     const onDone = (payload: unknown) => {
       reply.raw.write(`event: done\ndata: ${JSON.stringify(payload)}\n\n`);
       cleanup();
@@ -474,9 +532,7 @@ export async function buildServer(opts: { rootDir?: string; serveStatic?: boolea
     try {
       await fs.access(webDist);
       await app.register(fastifyStatic, { root: webDist, wildcard: false });
-      app.setNotFoundHandler((_req, reply) => {
-        return reply.sendFile("index.html");
-      });
+      app.setNotFoundHandler((_req, reply) => reply.sendFile("index.html"));
     } catch {
       // web/dist not built yet (e.g. dev mode)
     }
