@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_code-add-type-validation_t1",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "code-add-type-validation",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 0.0,
+  "passed": false,
+  "runtime_sec": 108.78,
+  "input_tokens": 630,
+  "output_tokens": 110,
+  "cost_usd": 0.000034,
+  "steps": 1,
+  "final_answer": "<tool_call>\n{\"name\": \"write_file\", \"arguments\": {\"path\": \"/workspace/temperature.py\", \"content\": 'def celsius_to_fahrenheit(c):\\n    if not isinstance(c, (int, float, bool)):\\n        raise TypeError(\"Input must be an int, float, or bool.\")\\n    if c < -273.15:\\n        raise ValueError(\"Temperature below absolute zero is not possible.\")\\n    return (c * 9/5) + 32'}}\n</tool_call>",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 0.0,
+    "passed": false,
+    "reasoning": "Verifier exited with code 1.",
+    "details": {
+      "exit_code": 1,
+      "output": ".FF                                                                      [100%]\n=================================== FAILURES ===================================\n_______________________________ test_type_errors _______________________________\n\n    def test_type_errors():\n        for bad in (\"10\", None, [1], True, False):\n>           with pytest.raises(TypeError):\nE           Failed: DID NOT RAISE TypeError\n\n/grader-tests/test_temperature.py:17: Failed\n___________________________ test_below_absolute_zero ___________________________\n\n    def test_below_absolute_zero():\n>       with pytest.raises(ValueError):\nE       Failed: DID NOT RAISE ValueError\n\n/grader-tests/test_temperature.py:22: Failed\n=========================== short test summary info ============================\nFAILED ../grader-tests/test_temperature.py::test_type_errors - Failed: DID NO...\nFAILED ../grader-tests/test_temperature.py::test_below_absolute_zero - Failed...\n2 failed, 1 passed in 0.01s\n"
+    }
+  },
+  "failure_category": "gave_up_early",
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_code-add-type-validation_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:59:18.468518+00:00"
+}

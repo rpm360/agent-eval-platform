@@ -42,10 +42,10 @@ Before you click **Run Experiment**, the dashboard shows a live cost estimate co
 Estimated Cost = tasks × trials (N) × configs × avg_tokens_per_trial × model_price_per_token
 ```
 
-- **Example (`24 tasks × 1 trial × 2 configs` on `gemini-flash`):**
-  - **Hermes:** `24 × 1 × 1 × ~50.5k tokens` (at \$0.75 / 1M input, \$3.75 / 1M output) ≈ **\$0.99 estimated** (**\$0.83 actual spend** in [`hermes_langgraph__gemini-flash__2026-11-23_13-32-24`](./EXPERIMENT_RESULTS.md)).
-  - **LangGraph:** `24 × 1 × 1 × ~21.7k tokens` ≈ **\$0.52 estimated** (**\$0.49 actual spend**).
-  - **Total actual spend for our 48-trial experiment:** **\$1.32** (\$0.8257 Hermes + \$0.4911 LangGraph, saving 41% on LangGraph).
+- **Example (`24 tasks × 1 trial × 2 configs` on `gemini-flash-lite-3.1` in [`EXPERIMENT_RESULTS.md`](./EXPERIMENT_RESULTS.md)):**
+  - **Hermes:** `24 × 1 × 1 × ~39.3k tokens` (at \$0.25 / 1M input, \$1.50 / 1M output) = **\$0.2475 actual spend**.
+  - **LangGraph:** `24 × 1 × 1 × ~5.6k tokens` = **\$0.0476 actual spend** (**5.2× cheaper** than Hermes for the exact same 100% pass rate).
+  - **Total actual spend across both showcase experiments (192 total trials):** **\$0.44** (\$0.2951 for the 48-trial harness comparison + \$0.1455 for the 144-trial `N = 3` model comparison).
 - **How to cut evaluation cost by 60–85%:**
   - **Prompt & prefix caching:** Hermes sends ~29k system/tool-schema tokens on every step. Enabling provider context caching (Gemini/Anthropic prompt caching) discounts repeated system prefixes by 75–90%.
   - **Early stopping on missing context & loops:** In our experiment, failed memory/skill trials burned ~70k–95k tokens searching the filesystem until step 20. Stopping immediately when `/agent-home/MEMORY.md` or `/io/skills/` is empty—or when the same bash search repeats twice—cuts wasted tokens on failing trials by >80%.

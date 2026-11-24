@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_file-csv-aggregate_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "file-csv-aggregate",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 16.46,
+  "input_tokens": 6708,
+  "output_tokens": 370,
+  "cost_usd": 0.002232,
+  "steps": 8,
+  "final_answer": "The total `amount` per `region` has been calculated and saved to `/workspace/summary.json`.\n\nThe contents of `/workspace/summary.json` are:\n```json\n{\n    \"north\": 200.0,\n    \"south\": 100.0,\n    \"east\": 300.0\n}\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: {'north': 200.0, 'south': 100.0, 'east': 300.0}\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_file-csv-aggregate_t2.trace.jsonl",
+  "created_at": "2026-11-23T19:07:39.649173+00:00"
+}

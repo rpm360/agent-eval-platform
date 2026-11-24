@@ -1,0 +1,33 @@
+{
+  "trial_id": "hermes-gemini-flash-lite-3.1_6d11c02e5407_fs-find-largest-file_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "hermes-gemini-flash-lite-3.1",
+  "config_hash": "6d11c02e5407",
+  "harness": "hermes",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "fs-find-largest-file",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 15.28,
+  "input_tokens": 31477,
+  "output_tokens": 262,
+  "cost_usd": 0.008262,
+  "steps": 2,
+  "final_answer": "The largest file is `project/.cache/build.log`, and its path has been written to `/workspace/LARGEST.txt`.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: project/.cache/build.log\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/hermes-gemini-flash-lite-3.1_6d11c02e5407_fs-find-largest-file_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:43:51.329643+00:00"
+}

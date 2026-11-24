@@ -1,0 +1,52 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_judge-api-docs_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "judge-api-docs",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 13.64,
+  "input_tokens": 2806,
+  "output_tokens": 452,
+  "cost_usd": 0.00138,
+  "steps": 3,
+  "final_answer": "The `README.md` file has been created with the requested documentation for the `TokenBucket` class.",
+  "grade": {
+    "grader_type": "llm_judge",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "The README.md file accurately documents the TokenBucket class, including constructor parameters, refill rate units, allow() semantics, all error conditions, and a correct usage example.",
+    "details": {
+      "judge_model": "gemini-flash-lite-3.1",
+      "criteria": [
+        {
+          "name": "Purpose and constructor parameters explained correctly (incl. refill_rate units).",
+          "met": true
+        },
+        {
+          "name": "allow() semantics and return value correct (deducts only on success).",
+          "met": true
+        },
+        {
+          "name": "All ValueError conditions documented correctly.",
+          "met": true
+        },
+        {
+          "name": "Usage example is consistent with the real API.",
+          "met": true
+        }
+      ],
+      "judge_input_tokens": 779,
+      "judge_output_tokens": 137
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_judge-api-docs_t2.trace.jsonl",
+  "created_at": "2026-11-23T19:06:46.159474+00:00"
+}

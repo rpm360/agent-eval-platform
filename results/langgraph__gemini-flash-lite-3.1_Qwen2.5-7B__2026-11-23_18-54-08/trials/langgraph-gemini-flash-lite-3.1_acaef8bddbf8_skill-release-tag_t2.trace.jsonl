@@ -1,0 +1,9 @@
+{"seq":1,"ts":"2026-11-24T04:18:53.785434+00:00","type":"session_start","payload":{"harness":"langgraph","model":"gemini/gemini-3.1-flash-lite","memory":true,"skills":["release-tag-format","changelog-format","commit-message-format"]}}
+{"seq":2,"ts":"2026-11-24T04:18:57.001051+00:00","type":"message","payload":{"role":"user","content":"Format the release tag for commit `a1b2c3d4e5f6` made on `2026-03-05` using our internal house release-tag convention (defined in the `release-tag-format` skill).\n\nWrite ONLY the formatted tag to `/workspace/TAG.txt`."}}
+{"seq":3,"ts":"2026-11-24T04:18:57.001191+00:00","type":"tool_call","payload":{"name":"read_skill","args":{"skill_name":"release-tag-format"}}}
+{"seq":4,"ts":"2026-11-24T04:18:57.001225+00:00","type":"skill_invoked","payload":{"skill":"release-tag-format","via":"read_skill"}}
+{"seq":5,"ts":"2026-11-24T04:18:57.001261+00:00","type":"tool_result","payload":{"name":"read_skill","output":"---\nname: release-tag-format\ndescription: Internal house convention for formatting release tags.\n---\n\n# Release Tag Format Skill\n\nWhen asked to create a release tag using the internal house convention, ALWAYS format it as:\n\n```text\naep-rel-YYYYMMDD-<first-6-chars-of-commit-sha>\n```\n\nExample: for commit `9f8e7d6c5b` on `2026-01-15`, the tag is `aep-rel-20260115-9f8e7d`.\nWrite ONLY the tag string (no extra commentary) to the requested file.\n"}}
+{"seq":6,"ts":"2026-11-24T04:18:57.001290+00:00","type":"tool_call","payload":{"name":"write_file","args":{"content":"aep-rel-20260305-a1b2c3","path":"/workspace/TAG.txt"}}}
+{"seq":7,"ts":"2026-11-24T04:18:57.001316+00:00","type":"tool_result","payload":{"name":"write_file","output":"wrote 23 bytes to /workspace/TAG.txt"}}
+{"seq":8,"ts":"2026-11-24T04:18:57.001352+00:00","type":"message","payload":{"role":"assistant","content":"f"}}
+{"seq":9,"ts":"2026-11-24T04:18:57.001373+00:00","type":"session_end","payload":{"reason":"final"}}

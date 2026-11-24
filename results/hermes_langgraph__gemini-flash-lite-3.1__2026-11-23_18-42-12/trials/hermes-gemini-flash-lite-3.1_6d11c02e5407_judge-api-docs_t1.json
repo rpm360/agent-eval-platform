@@ -1,0 +1,52 @@
+{
+  "trial_id": "hermes-gemini-flash-lite-3.1_6d11c02e5407_judge-api-docs_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "hermes-gemini-flash-lite-3.1",
+  "config_hash": "6d11c02e5407",
+  "harness": "hermes",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "judge-api-docs",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 14.79,
+  "input_tokens": 31943,
+  "output_tokens": 429,
+  "cost_usd": 0.008629,
+  "steps": 2,
+  "final_answer": "The documentation for `TokenBucket` has been written to `/workspace/README.md`. It covers the purpose, constructor parameters, `allow()` behavior and return values, error conditions, and includes a usage example.",
+  "grade": {
+    "grader_type": "llm_judge",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "The documentation accurately reflects the API requirements, including constructor parameters, refill rate units, allow() semantics, error conditions, and a correct usage example.",
+    "details": {
+      "judge_model": "gemini-flash-lite-3.1",
+      "criteria": [
+        {
+          "name": "Purpose and constructor parameters explained correctly (incl. refill_rate units).",
+          "met": true
+        },
+        {
+          "name": "allow() semantics and return value correct (deducts only on success).",
+          "met": true
+        },
+        {
+          "name": "All ValueError conditions documented correctly.",
+          "met": true
+        },
+        {
+          "name": "Usage example is consistent with the real API.",
+          "met": true
+        }
+      ],
+      "judge_input_tokens": 759,
+      "judge_output_tokens": 132
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/hermes-gemini-flash-lite-3.1_6d11c02e5407_judge-api-docs_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:45:32.029843+00:00"
+}

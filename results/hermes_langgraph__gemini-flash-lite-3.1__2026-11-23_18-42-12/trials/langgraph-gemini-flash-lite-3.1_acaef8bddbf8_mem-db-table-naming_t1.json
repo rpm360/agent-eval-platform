@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-db-table-naming_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "mem-db-table-naming",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 4.73,
+  "input_tokens": 1113,
+  "output_tokens": 74,
+  "cost_usd": 0.000389,
+  "steps": 1,
+  "final_answer": "OK. The SQL has been written to `/workspace/schema.sql`.",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: ['tbl_crm__customers'] {'id': ('INTEGER', 0), 'name': ('TEXT', 1), 'created_at': ('TIMESTAMP', 1)}\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_mem-db-table-naming_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:43:28.230693+00:00"
+}

@@ -1,0 +1,30 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_judge-explain-bug_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "judge-explain-bug",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 0.0,
+  "passed": false,
+  "runtime_sec": 4137.73,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "cost_usd": 0.0,
+  "steps": 0,
+  "final_answer": "",
+  "grade": {
+    "grader_type": "llm_judge",
+    "score": 0.0,
+    "passed": false,
+    "reasoning": "Agent timed out after 180s.",
+    "details": {}
+  },
+  "failure_category": "timeout",
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_judge-explain-bug_t2.trace.jsonl",
+  "created_at": "2026-11-23T22:24:55.777660+00:00"
+}

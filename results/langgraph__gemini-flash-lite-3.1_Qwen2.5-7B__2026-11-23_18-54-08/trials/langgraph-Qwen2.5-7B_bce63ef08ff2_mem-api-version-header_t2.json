@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-Qwen2.5-7B_bce63ef08ff2_mem-api-version-header_t2",
+  "experiment_id": "langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08",
+  "config_name": "langgraph-Qwen2.5-7B",
+  "config_hash": "bce63ef08ff2",
+  "harness": "langgraph",
+  "model": "Qwen2.5-7B",
+  "task_id": "mem-api-version-header",
+  "trial_index": 2,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 12.26,
+  "input_tokens": 1383,
+  "output_tokens": 136,
+  "cost_usd": 0.000072,
+  "steps": 1,
+  "final_answer": "The `curl` command has been written to `/workspace/request.sh`. You can execute it to perform the GET request to the `/orders/42` endpoint using the following command:\n\n```sh\ncurl -H 'X-AEP-Api: 2026-01-preview' https://api.internal.aep.dev/v3/orders/42\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "PASS: curl -H 'X-AEP-Api: 2026-01-preview' https://api.internal.aep.dev/v3/orders/42\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/langgraph__gemini-flash-lite-3.1_Qwen2.5-7B__2026-11-23_18-54-08/trials/langgraph-Qwen2.5-7B_bce63ef08ff2_mem-api-version-header_t2.trace.jsonl",
+  "created_at": "2026-11-23T19:01:04.035523+00:00"
+}

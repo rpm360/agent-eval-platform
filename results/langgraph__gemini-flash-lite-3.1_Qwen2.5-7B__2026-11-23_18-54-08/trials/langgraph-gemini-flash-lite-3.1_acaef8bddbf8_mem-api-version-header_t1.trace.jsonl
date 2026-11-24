@@ -1,0 +1,12 @@
+{"seq":1,"ts":"2026-11-23T22:08:58.875901+00:00","type":"session_start","payload":{"harness":"langgraph","model":"gemini/gemini-3.1-flash-lite","memory":true,"skills":["release-tag-format","changelog-format","commit-message-format"]}}
+{"seq":2,"ts":"2026-11-23T22:08:58.880070+00:00","type":"memory_op","payload":{"op":"read","target":"MEMORY.md"}}
+{"seq":3,"ts":"2026-11-23T22:09:03.085319+00:00","type":"message","payload":{"role":"user","content":"Using our team's previously agreed internal API conventions from memory, write a single\n`curl` command that performs a GET request to the `/orders/42` endpoint of our internal API.\n\nWrite ONLY the command to `/workspace/request.sh`."}}
+{"seq":4,"ts":"2026-11-23T22:09:03.085393+00:00","type":"tool_call","payload":{"name":"read_memory","args":{}}}
+{"seq":5,"ts":"2026-11-23T22:09:03.085416+00:00","type":"memory_op","payload":{"op":"read","target":"MEMORY.md"}}
+{"seq":6,"ts":"2026-11-23T22:09:03.085439+00:00","type":"tool_result","payload":{"name":"read_memory","output":"# Internal API Conventions\n\n- Base URL for all internal API calls: `https://api.internal.aep.dev/v3`\n- Every request MUST include the header `X-AEP-Api: 2026-01-preview`.\n"}}
+{"seq":7,"ts":"2026-11-23T22:09:03.085457+00:00","type":"tool_call","payload":{"name":"write_file","args":{"content":"curl -H \"X-AEP-Api: 2026-01-preview\" https://api.internal.aep.dev/v3/orders/42\n","path":"/workspace/request.sh"}}}
+{"seq":8,"ts":"2026-11-23T22:09:03.085478+00:00","type":"tool_result","payload":{"name":"write_file","output":"wrote 79 bytes to /workspace/request.sh"}}
+{"seq":9,"ts":"2026-11-23T22:09:03.085505+00:00","type":"tool_call","payload":{"name":"read_file","args":{"path":"/workspace/request.sh"}}}
+{"seq":10,"ts":"2026-11-23T22:09:03.085525+00:00","type":"tool_result","payload":{"name":"read_file","output":"curl -H \"X-AEP-Api: 2026-01-preview\" https://api.internal.aep.dev/v3/orders/42\n"}}
+{"seq":11,"ts":"2026-11-23T22:09:03.085540+00:00","type":"message","payload":{"role":"assistant","content":"OK."}}
+{"seq":12,"ts":"2026-11-23T22:09:03.085554+00:00","type":"session_end","payload":{"reason":"final"}}

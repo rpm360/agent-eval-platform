@@ -1,0 +1,33 @@
+{
+  "trial_id": "langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-fix-lru-cache_t1",
+  "experiment_id": "hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12",
+  "config_name": "langgraph-gemini-flash-lite-3.1",
+  "config_hash": "acaef8bddbf8",
+  "harness": "langgraph",
+  "model": "gemini-flash-lite-3.1",
+  "task_id": "code-fix-lru-cache",
+  "trial_index": 1,
+  "status": "completed",
+  "score": 1.0,
+  "passed": true,
+  "runtime_sec": 10.25,
+  "input_tokens": 6514,
+  "output_tokens": 727,
+  "cost_usd": 0.002719,
+  "steps": 6,
+  "final_answer": "The bug in `/workspace/lru.py` was that `self._store.popitem(last=True)` was being called when the cache exceeded its capacity. In `OrderedDict`, `popitem(last=True)` removes the *most* recently used item (the end of the dictionary), whereas an LRU cache should remove the *least* recently used item (the beginning of the dictionary).\n\nI have fixed the bug by changing `last=True` to `last=False` in the `put` method.\n\n```python\n    def put(self, key: str, value: Any) -> None:\n        if key in self._store:\n            self._store.move_to_end(key)\n        self._store[key] = value\n        if len(self._store) > self.capacity:\n            # FIX: pop the LEAST recently used item (first item)\n            self._store.popitem(last=False)\n```",
+  "grade": {
+    "grader_type": "deterministic",
+    "score": 1.0,
+    "passed": true,
+    "reasoning": "All checks passed.",
+    "details": {
+      "exit_code": 0,
+      "output": "..                                                                       [100%]\n2 passed in 0.00s\n"
+    }
+  },
+  "failure_category": null,
+  "error_message": null,
+  "trace_path": "results/hermes_langgraph__gemini-flash-lite-3.1__2026-11-23_18-42-12/trials/langgraph-gemini-flash-lite-3.1_acaef8bddbf8_code-fix-lru-cache_t1.trace.jsonl",
+  "created_at": "2026-11-23T18:44:02.735744+00:00"
+}

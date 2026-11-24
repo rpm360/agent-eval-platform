@@ -1,0 +1,1 @@
+{"seq":1,"ts":"2026-11-23T20:40:56.121165+00:00","type":"session_start","payload":{"harness":"langgraph","model":"openai/Qwen/Qwen2.5-7B-Instruct-AWQ","memory":true,"skills":["release-tag-format","changelog-format","commit-message-format"]}}
